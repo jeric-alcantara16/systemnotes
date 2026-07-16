@@ -533,6 +533,32 @@ function renderChecklist() {
     let graphValues = [];
 
     if (state.trackerGraphTab === "Daily") {
+        graphLabels = ["12am-6am", "6am-12pm", "12pm-6pm", "6pm-12am"];
+        graphValues = [0, 0, 0, 0];
+        const todayStr = new Date().toISOString().split('T')[0];
+        
+        state.trackerTasks.forEach(t => {
+            if (t.status === "Completed") {
+                const compDateStr = (t.completedAt || t.dueDate || "").split('T')[0];
+                if (compDateStr === todayStr) {
+                    let hour = 12; // default fallback (12 PM)
+                    if (t.completedAt && t.completedAt.includes('T')) {
+                        hour = new Date(t.completedAt).getHours();
+                    }
+                    
+                    if (hour >= 0 && hour < 6) {
+                        graphValues[0]++;
+                    } else if (hour >= 6 && hour < 12) {
+                        graphValues[1]++;
+                    } else if (hour >= 12 && hour < 18) {
+                        graphValues[2]++;
+                    } else {
+                        graphValues[3]++;
+                    }
+                }
+            }
+        });
+    } else if (state.trackerGraphTab === "Weekly") {
         for (let i = 6; i >= 0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
@@ -540,32 +566,15 @@ function renderChecklist() {
             const label = d.toLocaleDateString('en-US', { weekday: 'short' });
             graphLabels.push(label);
             
-            const count = state.trackerTasks.filter(t => t.status === "Completed" && (t.completedAt === dateStr || (!t.completedAt && t.dueDate === dateStr))).length;
+            const count = state.trackerTasks.filter(t => {
+                if (t.status !== "Completed") return false;
+                const compDateStr = (t.completedAt || t.dueDate || "").split('T')[0];
+                return compDateStr === dateStr;
+            }).length;
             graphValues.push(count);
         }
-    } else if (state.trackerGraphTab === "Weekly") {
-        graphLabels = ["Wk 1", "Wk 2", "Wk 3", "Wk 4"];
-        graphValues = [0, 0, 0, 0];
-        const nowMs = Date.now();
-        const dayMs = 24 * 60 * 60 * 1000;
-        
-        state.trackerTasks.forEach(t => {
-            if (t.status === "Completed") {
-                const tDateStr = t.completedAt || t.dueDate;
-                if (tDateStr) {
-                    const tMs = new Date(tDateStr).getTime();
-                    const diffDays = Math.floor((nowMs - tMs) / dayMs);
-                    if (diffDays >= 0 && diffDays < 28) {
-                        const weekIdx = 3 - Math.floor(diffDays / 7);
-                        if (weekIdx >= 0 && weekIdx < 4) {
-                            graphValues[weekIdx]++;
-                        }
-                    }
-                }
-            }
-        });
     } else if (state.trackerGraphTab === "Monthly") {
-        for (let i = 5; i >= 0; i--) {
+        for (let i = 4; i >= 0; i--) {
             const d = new Date();
             d.setMonth(d.getMonth() - i);
             const yearMonth = d.toISOString().split('T')[0].substring(0, 7);
@@ -574,21 +583,21 @@ function renderChecklist() {
             
             const count = state.trackerTasks.filter(t => {
                 if (t.status !== "Completed") return false;
-                const tDateStr = t.completedAt || t.dueDate;
-                return tDateStr && tDateStr.startsWith(yearMonth);
+                const compDateStr = (t.completedAt || t.dueDate || "").split('T')[0];
+                return compDateStr && compDateStr.startsWith(yearMonth);
             }).length;
             graphValues.push(count);
         }
     } else if (state.trackerGraphTab === "Yearly") {
         const currentYear = new Date().getFullYear();
-        for (let i = 2; i >= 0; i--) {
+        for (let i = 4; i >= 0; i--) {
             const yr = currentYear - i;
             graphLabels.push(yr.toString());
             
             const count = state.trackerTasks.filter(t => {
                 if (t.status !== "Completed") return false;
-                const tDateStr = t.completedAt || t.dueDate;
-                return tDateStr && tDateStr.startsWith(yr.toString());
+                const compDateStr = (t.completedAt || t.dueDate || "").split('T')[0];
+                return compDateStr && compDateStr.startsWith(yr.toString());
             }).length;
             graphValues.push(count);
         }
@@ -957,7 +966,7 @@ function renderChecklist() {
                 task.completedAt = null;
             } else {
                 task.status = "Completed";
-                task.completedAt = new Date().toISOString().split('T')[0];
+                task.completedAt = new Date().toISOString();
             }
             localStorage.setItem("sysnotes_tracker_tasks", JSON.stringify(state.trackerTasks));
             renderChecklist();
@@ -976,7 +985,7 @@ function renderChecklist() {
         sSelect.onchange = (e) => {
             task.status = e.target.value;
             if (task.status === "Completed") {
-                task.completedAt = new Date().toISOString().split('T')[0];
+                task.completedAt = new Date().toISOString();
             } else {
                 task.completedAt = null;
             }
