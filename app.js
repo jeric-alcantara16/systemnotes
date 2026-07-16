@@ -380,8 +380,8 @@ const checklistWrapper = document.getElementById("checklistWrapper");
 function renderChecklist() {
     checklistWrapper.innerHTML = "";
 
-    // If systems is empty, auto-create a default one
-    if (!state.systems || state.systems.length === 0) {
+    // If systems is empty or not an array, auto-create a default one
+    if (!state.systems || !Array.isArray(state.systems) || state.systems.length === 0) {
         state.systems = [
             { id: "sys_default", name: "Standard Web Service", completedTasks: [], customTasks: [] }
         ];
@@ -390,8 +390,19 @@ function renderChecklist() {
         localStorage.setItem("sysnotes_active_system_id", state.activeSystemId);
     }
 
+    // Sanitize state.systems to guarantee completedTasks and customTasks are arrays
+    state.systems.forEach(sys => {
+        if (!sys || typeof sys !== 'object') return;
+        if (!sys.completedTasks || !Array.isArray(sys.completedTasks)) {
+            sys.completedTasks = [];
+        }
+        if (!sys.customTasks || !Array.isArray(sys.customTasks)) {
+            sys.customTasks = [];
+        }
+    });
+
     // Ensure activeSystemId is valid
-    let activeSystem = state.systems.find(sys => sys.id === state.activeSystemId);
+    let activeSystem = state.systems.find(sys => sys && sys.id === state.activeSystemId);
     if (!activeSystem) {
         activeSystem = state.systems[0];
         state.activeSystemId = activeSystem.id;
