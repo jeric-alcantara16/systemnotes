@@ -21,7 +21,7 @@ let state = {
     systems: safeJSONParse("sysnotes_systems", []),
     activeSystemId: localStorage.getItem("sysnotes_active_system_id") || null,
     theme: localStorage.getItem("sysnotes_theme") || "dark",
-    
+
     // Task Tracker state
     trackerTasks: safeJSONParse("sysnotes_tracker_tasks", null),
     trackerFilterStatus: "All",
@@ -104,7 +104,7 @@ function renderSidebarCategories() {
         const catItem = document.createElement("a");
         catItem.className = "nav-item";
         catItem.style.cssText = "cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.85rem; font-weight: 600; margin-bottom: 2px;";
-        
+
         const count = state.trackerTasks.filter(t => t.category && t.category.trim() === cat).length;
         const isActive = state.trackerSelectedCategory === cat;
         if (isActive) catItem.classList.add("active");
@@ -148,7 +148,7 @@ function resetSidebarFilterClasses(activeEl) {
             el.classList.remove("active");
         }
     });
-    
+
     // Clear active state of category nodes
     if (activeEl) {
         document.querySelectorAll("#dynamicCategoriesContainer .nav-item").forEach(el => el.classList.remove("active"));
@@ -228,7 +228,7 @@ function renderChecklist() {
     const completedTasks = state.trackerTasks.filter(t => t.status === "Completed").length;
     const inProgressTasks = state.trackerTasks.filter(t => t.status === "In Progress").length;
     const todoTasks = state.trackerTasks.filter(t => t.status === "To Do").length;
-    
+
     const completionPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
     const highPriority = state.trackerTasks.filter(t => t.priority === "High").length;
@@ -238,7 +238,7 @@ function renderChecklist() {
     // 1. RENDER DASHBOARD METRICS HEADER (MindForm Sheets style)
     const dashboard = document.createElement("div");
     dashboard.style.cssText = "display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:20px; margin-bottom:30px;";
-    
+
     dashboard.innerHTML = `
         <!-- Card 1: Completion Ring -->
         <div style="background:var(--bg-secondary); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; align-items:center; gap:20px; box-shadow:var(--shadow-sm);">
@@ -298,11 +298,11 @@ function renderChecklist() {
     // 2. RENDER ADD TASK INLINE FORM CARD
     const addCard = document.createElement("div");
     addCard.style.cssText = "background:var(--bg-secondary); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:30px; box-shadow:var(--shadow-sm);";
-    
+
     addCard.innerHTML = `
         <h3 style="font-size:0.95rem; font-weight:800; color:var(--text-primary); margin-bottom:14px; display:flex; align-items:center; gap:8px;">
             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            Add Tracker Task
+            Add Task Tracker
         </h3>
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:12px;">
             <div>
@@ -376,7 +376,7 @@ function renderChecklist() {
     // 3. RENDER CONTROLS ROW (Filters: Status and Priority)
     const filterRow = document.createElement("div");
     filterRow.style.cssText = "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:20px; border-bottom:1px solid var(--border-light); padding-bottom:16px;";
-    
+
     // Status Filter buttons layout
     const filterStates = ["All", "To Do", "In Progress", "Completed"];
     let filterButtonsHtml = "";
@@ -441,11 +441,11 @@ function renderChecklist() {
 
     const tableContainer = document.createElement("div");
     tableContainer.style.cssText = "background:var(--bg-secondary); border:1px solid var(--border); border-radius:12px; overflow-x:auto; box-shadow:var(--shadow-sm);";
-    
+
     let rowsHtml = "";
     filteredTasks.forEach(task => {
         const isDone = task.status === "Completed";
-        
+
         // Priority Select Styling
         let prColor = "#3b82f6"; // Low (Blue)
         let prText = "#ffffff";
@@ -601,7 +601,7 @@ function renderQuiz(lesson) {
 
     const wrapper = document.createElement("div");
     wrapper.className = "quiz-wrapper";
-    
+
     // Generate questions markup
     let questionsHtml = "";
     lesson.quiz.forEach((q, qIndex) => {
@@ -709,7 +709,7 @@ function renderQuiz(lesson) {
 
         // Show global scores dashboard
         submitQuizBtn.textContent = "Retake Assessment";
-        
+
         // Mark chapter completed
         state.completedItems[lesson.id] = true;
         localStorage.setItem("sysnotes_completed", JSON.stringify(state.completedItems));
@@ -903,7 +903,7 @@ function renderSequenceDiagramVisualizer() {
 
     btn.onclick = () => {
         btn.disabled = true;
-        
+
         // Capture positions relative to parent container
         const cX = 64, gX = 236, dbX = 407;
         const yStep1 = 60, yStep2 = 110, yStep3 = 160, yStep4 = 210;
@@ -1034,7 +1034,7 @@ function renderLoadBalancingVisualizer() {
         // Nodes selection
         const servers = [0, 1, 2];
         const srvId = servers[rrIndex];
-        
+
         // Remove highlighting from previous server
         servers.forEach(idx => document.getElementById(`srv${idx}`).classList.remove("active-green"));
 
@@ -1064,7 +1064,7 @@ function renderLoadBalancingVisualizer() {
             packet.style.display = "none";
             log.textContent = `Server ${["A", "B", "C"][srvId]} processed request. HTTP 200 OK.`;
             btn.disabled = false;
-            
+
             // Advance Round Robin
             rrIndex = (rrIndex + 1) % 3;
         }, 1200);
@@ -1111,7 +1111,7 @@ function renderCacheAsideVisualizer() {
     btn.onclick = () => {
         const id = input.value.trim();
         if (!id) return;
-        
+
         btn.disabled = true;
         ndClient.classList.remove("active", "active-green");
         ndCache.classList.remove("active", "active-green");
@@ -1164,7 +1164,7 @@ function renderCacheAsideVisualizer() {
                 log.textContent = `Postgres returned records. Committing to Redis cache and returning payload to app Client.`;
                 ndDB.classList.remove("active");
                 ndDB.classList.add("active-green");
-                
+
                 // Write into cache mock
                 redisCache[id] = `User payload data for ${id}`;
             }, 2100);
@@ -1265,7 +1265,7 @@ function renderMessageQueueVisualizer() {
             target.remove(); // completed popped from buffer
             isProcessing = false;
             log.textContent = `Completed: Event ${idStr} consumed & committed (Offset updated).`;
-            
+
             // Loop for remaining queued items
             triggerConsumerEngine();
         }, 1800);
@@ -1918,10 +1918,10 @@ function renderJsEventLoopVisualizer() {
         stack.innerHTML = "";
         micro.innerHTML = "";
         macro.innerHTML = "";
-        
+
         log.textContent = "Executing synchronous script blocks...";
         pushItem(stack, "main()", "var(--text-secondary)");
-        
+
         setTimeout(() => {
             pushItem(stack, "setTimeout()", "var(--accent-orange)");
             pushItem(macro, "Timer Callback()", "rgba(249,115,22,0.7)");
