@@ -21,7 +21,7 @@ let state = {
     systems: safeJSONParse("sysnotes_systems", []),
     activeSystemId: localStorage.getItem("sysnotes_active_system_id") || null,
     theme: localStorage.getItem("sysnotes_theme") || "dark",
-
+    
     // Task Tracker state
     trackerTasks: safeJSONParse("sysnotes_tracker_tasks", null),
     trackerFilterStatus: "All",
@@ -40,22 +40,61 @@ if (state.trackerTasks === null) {
     localStorage.setItem("sysnotes_tracker_tasks", JSON.stringify(state.trackerTasks));
 }
 
-// // Task Tracker Filter state
-state.trackerSelectedCategory = null;
+// Cached lookup arrays from lessons.js
+let currentLessonsList = [];
 
+// ==========================================================================
 // DOM ELEMENT REFERENCES
+// ==========================================================================
 const appSidebar = document.getElementById("appSidebar");
+const sidebarNav = document.getElementById("sidebarNav");
 const sidebarOverlay = document.getElementById("sidebarOverlay");
 const menuToggleBtn = document.getElementById("menuToggleBtn");
 const closeSidebarBtn = document.getElementById("closeSidebarBtn");
+
+const btnSystemDesign = document.getElementById("btnSystemDesign");
+const btnLanguages = document.getElementById("btnLanguages");
+const searchInput = document.getElementById("searchInput");
+const clearSearchBtn = document.getElementById("clearSearchBtn");
+
+const btnGlossary = document.getElementById("btnGlossary");
+const btnChecklist = document.getElementById("btnChecklist");
+
 const themeToggleBtn = document.getElementById("themeToggleBtn");
 const breadcrumbs = document.getElementById("breadcrumbs");
+const progressBar = document.getElementById("progressBar");
+const progressPercent = document.getElementById("progressPercent");
+
 const contentContainer = document.getElementById("contentContainer");
+const welcomeView = document.getElementById("welcomeView");
+const lessonView = document.getElementById("lessonView");
+const glossaryView = document.getElementById("glossaryView");
 const checklistView = document.getElementById("checklistView");
 
+const startCourseBtn = document.getElementById("startCourseBtn");
+const welcomeChecklistBtn = document.getElementById("welcomeChecklistBtn");
+const prevChapterBtn = document.getElementById("prevChapterBtn");
+const nextChapterBtn = document.getElementById("nextChapterBtn");
+
+const tabButtons = document.querySelectorAll(".tab-btn");
+const tabPanes = document.querySelectorAll(".tab-pane");
+
+const lessonBody = document.getElementById("lessonBody");
+const visualizerCanvas = document.getElementById("visualizerCanvas");
+const visualizerTitle = document.getElementById("visualizerTitle");
+const visualizerDesc = document.getElementById("visualizerDesc");
+const quizContainer = document.getElementById("quizContainer");
+
+// ==========================================================================
 // THEME & CORE INITIALIZATION
+// ==========================================================================
 function initTheme() {
     document.documentElement.setAttribute("data-theme", state.theme);
+    updateThemeIcon();
+}
+
+function updateThemeIcon() {
+    // Icons are toggled via CSS selectors on data-theme
 }
 
 themeToggleBtn.addEventListener("click", () => {
@@ -63,6 +102,244 @@ themeToggleBtn.addEventListener("click", () => {
     localStorage.setItem("sysnotes_theme", state.theme);
     document.documentElement.setAttribute("data-theme", state.theme);
 });
+
+// ==========================================================================
+// NAVIGATION & SPA ROUTING
+// ==========================================================================
+function updateActiveModeData() {
+    currentLessonsList = state.currentMode === "system-design" ? SYSTEM_DESIGN_LESSONS : PROGRAMMING_LANGUAGE_LESSONS;
+}
+
+function buildSidebarNav(searchQuery = "") {
+    sidebarNav.innerHTML = "";
+    updateActiveModeData();
+
+    // Grouping by category
+    const categories = {};
+    currentLessonsList.forEach(lesson => {
+        const matchesQuery = lesson.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                             lesson.content.toLowerCase().includes(searchQuery.toLowerCase());
+        
+        if (searchQuery === "" || matchesQuery) {
+            if (!categories[lesson.category]) {
+                categories[lesson.category] = [];
+            }
+            categories[lesson.category].push(lesson);
+        }
+    });
+
+    Object.keys(categories).forEach(cat => {
+        const header = document.createElement("div");
+        header.className = "nav-section-title";
+        header.textContent = cat;
+        sidebarNav.appendChild(header);
+
+        categories[cat].forEach(lesson => {
+            const item = document.createElement("a");
+            item.className = "nav-item";
+            if (state.activeChapterId === lesson.id) item.classList.add("active");
+            if (state.completedItems[lesson.id]) item.classList.add("completed");
+            item.innerHTML = `
+                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                </svg>
+                <span>${lesson.title}</span>
+            `;
+            item.addEventListener("click", () => {
+                showChapter(lesson.id);
+                closeSidebarMobile();
+            });
+            sidebarNav.appendChild(item);
+        });
+    });
+}
+
+function showView(viewName) {
+    // Hide all views
+    welcomeView.classList.remove("active");
+    lessonView.classList.remove("active");
+    glossaryView.classList.remove("active");
+    checklistView.classList.remove("active");
+
+    // Remove active states from footer buttons
+    btnGlossary.classList.remove("active");
+    btnChecklist.classList.remove("active");
+
+    // Clear active links in sidebar
+    document.querySelectorAll(".nav-item").forEach(item => item.classList.remove("active"));
+
+    if (viewName === "welcome") {
+        welcomeView.classList.add("active");
+        breadcrumbs.innerHTML = `<span>Home</span>`;
+        state.activeChapterId = null;
+    } else if (viewName === "glossary") {
+        glossaryView.classList.add("active");
+        btnGlossary.classList.add("active");
+        breadcrumbs.innerHTML = `<span>Home</span> &nbsp;&raquo;&nbsp; <span>Glossary</span>`;
+        state.activeChapterId = null;
+        renderGlossary();
+    } else if (viewName === "checklist") {
+        checklistView.classList.add("active");
+        btnChecklist.classList.add("active");
+        breadcrumbs.innerHTML = `<span>Home</span> &nbsp;&raquo;&nbsp; <span>Task Tracker</span>`;
+        state.activeChapterId = null;
+        renderChecklist();
+    } else if (viewName === "lesson") {
+        lessonView.classList.add("active");
+    }
+}
+
+function showChapter(chapterId) {
+    state.activeChapterId = chapterId;
+    updateActiveModeData();
+    const lesson = currentLessonsList.find(l => l.id === chapterId);
+    if (!lesson) return;
+
+    showView("lesson");
+
+    // Highlight active link in sidebar
+    document.querySelectorAll(".nav-item").forEach(item => {
+        const spanText = item.querySelector("span").textContent;
+        if (spanText === lesson.title) {
+            item.classList.add("active");
+        } else {
+            item.classList.remove("active");
+        }
+    });
+
+    // Set Breadcrumbs
+    breadcrumbs.innerHTML = `<span>${state.currentMode === "system-design" ? "System Design" : "Languages"}</span> &nbsp;&raquo;&nbsp; <span>${lesson.title}</span>`;
+
+    // Render contents
+    lessonBody.innerHTML = lesson.content;
+    
+    // Configure Visualizer Tab visibility
+    const tabVisualizerBtn = document.getElementById("tabVisualizerBtn");
+    if (lesson.visualizer) {
+        tabVisualizerBtn.style.display = "flex";
+    } else {
+        tabVisualizerBtn.style.display = "none";
+        if (state.activeTab === "visualizer") {
+            switchTab("learn");
+        }
+    }
+
+    // Load active tab
+    switchTab(state.activeTab);
+
+    // Initialize/Render Quiz
+    renderQuiz(lesson);
+
+    // Setup navigation buttons (Prev / Next)
+    const currentIndex = currentLessonsList.findIndex(l => l.id === chapterId);
+    if (currentIndex > 0) {
+        prevChapterBtn.classList.remove("disabled");
+        prevChapterBtn.onclick = () => showChapter(currentLessonsList[currentIndex - 1].id);
+    } else {
+        prevChapterBtn.classList.add("disabled");
+        prevChapterBtn.onclick = null;
+    }
+
+    if (currentIndex < currentLessonsList.length - 1) {
+        nextChapterBtn.classList.remove("disabled");
+        nextChapterBtn.onclick = () => showChapter(currentLessonsList[currentIndex + 1].id);
+    } else {
+        nextChapterBtn.classList.add("disabled");
+        nextChapterBtn.onclick = null;
+    }
+
+    // Scroll to top of article
+    document.querySelector(".app-main").scrollTop = 0;
+}
+
+// Tab Switching logic
+function switchTab(tabId) {
+    state.activeTab = tabId;
+    
+    // Update button styling
+    tabButtons.forEach(btn => {
+        if (btn.getAttribute("data-tab") === tabId) {
+            btn.classList.add("active");
+        } else {
+            btn.classList.remove("active");
+        }
+    });
+
+    // Update panel visibility
+    tabPanes.forEach(pane => {
+        if (pane.id === `pane${tabId.charAt(0).toUpperCase() + tabId.slice(1)}`) {
+            pane.classList.add("active");
+        } else {
+            pane.classList.remove("active");
+        }
+    });
+
+    // Trigger visualizer renderer if loaded
+    if (tabId === "visualizer" && state.activeChapterId) {
+        const lesson = currentLessonsList.find(l => l.id === state.activeChapterId);
+        if (lesson && lesson.visualizer) {
+            initVisualizer(lesson.visualizer);
+        }
+    }
+}
+
+tabButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+        switchTab(btn.getAttribute("data-tab"));
+    });
+});
+
+// Mode Switching (System Design vs Programming Languages)
+function setMode(mode) {
+    state.currentMode = mode;
+    state.activeChapterId = null;
+    
+    if (mode === "system-design") {
+        btnSystemDesign.classList.add("active");
+        btnLanguages.classList.remove("active");
+    } else {
+        btnSystemDesign.classList.remove("active");
+        btnLanguages.classList.add("active");
+    }
+
+    buildSidebarNav();
+    showView("welcome");
+    updateGlobalProgress();
+}
+
+btnSystemDesign.addEventListener("click", () => setMode("system-design"));
+btnLanguages.addEventListener("click", () => setMode("languages"));
+
+// Search implementation
+searchInput.addEventListener("input", (e) => {
+    const val = e.target.value;
+    if (val.length > 0) {
+        clearSearchBtn.style.display = "block";
+    } else {
+        clearSearchBtn.style.display = "none";
+    }
+    buildSidebarNav(val);
+});
+
+clearSearchBtn.addEventListener("click", () => {
+    searchInput.value = "";
+    clearSearchBtn.style.display = "none";
+    buildSidebarNav("");
+});
+
+// Navigation shortcuts on home screen
+startCourseBtn.addEventListener("click", () => {
+    updateActiveModeData();
+    if (currentLessonsList.length > 0) {
+        showChapter(currentLessonsList[0].id);
+    }
+});
+
+welcomeChecklistBtn.addEventListener("click", () => showView("checklist"));
+
+btnGlossary.addEventListener("click", () => showView("glossary"));
+btnChecklist.addEventListener("click", () => showView("checklist"));
 
 // Mobile Sidebar toggle control
 function openSidebarMobile() {
@@ -79,139 +356,42 @@ menuToggleBtn.addEventListener("click", openSidebarMobile);
 closeSidebarBtn.addEventListener("click", closeSidebarMobile);
 sidebarOverlay.addEventListener("click", closeSidebarMobile);
 
-// Dynamic Sidebar Categories & Filters
-function renderSidebarCategories() {
-    const container = document.getElementById("dynamicCategoriesContainer");
-    if (!container) return;
-    container.innerHTML = "";
+// ==========================================================================
+// GLOSSARY VIEW IMPLEMENTATION
+// ==========================================================================
+const glossarySearchInput = document.getElementById("glossarySearchInput");
+const glossaryGrid = document.getElementById("glossaryGrid");
 
-    // Extract unique categories
-    const categories = [];
-    state.trackerTasks.forEach(task => {
-        if (task.category) {
-            const trimmed = task.category.trim();
-            if (trimmed && !categories.includes(trimmed)) {
-                categories.push(trimmed);
-            }
-        }
-    });
+function renderGlossary(filterText = "") {
+    glossaryGrid.innerHTML = "";
+    const filtered = GLOSSARY_ITEMS.filter(item => 
+        item.term.toLowerCase().includes(filterText.toLowerCase()) || 
+        item.definition.toLowerCase().includes(filterText.toLowerCase())
+    );
 
-    if (categories.length === 0) {
-        container.innerHTML = `<div style="font-size:0.8rem; color:var(--text-muted); padding:4px 12px; font-style:italic;">No categories yet</div>`;
+    if (filtered.length === 0) {
+        glossaryGrid.innerHTML = `<div class="no-results">No definitions match your search.</div>`;
         return;
     }
 
-    categories.forEach(cat => {
-        const catItem = document.createElement("a");
-        catItem.className = "nav-item";
-        catItem.style.cssText = "cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.85rem; font-weight: 600; margin-bottom: 2px;";
-
-        const count = state.trackerTasks.filter(t => t.category && t.category.trim() === cat).length;
-        const isActive = state.trackerSelectedCategory === cat;
-        if (isActive) catItem.classList.add("active");
-
-        catItem.innerHTML = `
-            <span># ${cat}</span>
-            <span style="font-size: 0.75rem; background: var(--surface); padding: 2px 6px; border-radius: 4px; color: var(--text-muted);">${count}</span>
+    filtered.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "glossary-card";
+        card.innerHTML = `
+            <div class="glossary-term">${item.term}</div>
+            <div class="glossary-definition">${item.definition}</div>
         `;
-
-        catItem.onclick = () => {
-            if (state.trackerSelectedCategory === cat) {
-                state.trackerSelectedCategory = null;
-                resetSidebarFilterClasses(document.getElementById("filterAll"));
-                state.trackerFilterStatus = "All";
-                state.trackerFilterPriority = "All";
-            } else {
-                state.trackerSelectedCategory = cat;
-                state.trackerFilterStatus = "All";
-                state.trackerFilterPriority = "All";
-                resetSidebarFilterClasses(null);
-            }
-            renderSidebarCategories();
-            renderChecklist();
-            closeSidebarMobile();
-        };
-
-        container.appendChild(catItem);
+        glossaryGrid.appendChild(card);
     });
 }
 
-function resetSidebarFilterClasses(activeEl) {
-    const filterAll = document.getElementById("filterAll");
-    const filterHigh = document.getElementById("filterHigh");
-    const filterProgress = document.getElementById("filterProgress");
-    const filterDone = document.getElementById("filterDone");
+glossarySearchInput.addEventListener("input", (e) => {
+    renderGlossary(e.target.value);
+});
 
-    [filterAll, filterHigh, filterProgress, filterDone].forEach(el => {
-        if (el && el === activeEl) {
-            el.classList.add("active");
-        } else if (el) {
-            el.classList.remove("active");
-        }
-    });
-
-    // Clear active state of category nodes
-    if (activeEl) {
-        document.querySelectorAll("#dynamicCategoriesContainer .nav-item").forEach(el => el.classList.remove("active"));
-    }
-}
-
-function setupSidebarFilters() {
-    const filterAll = document.getElementById("filterAll");
-    const filterHigh = document.getElementById("filterHigh");
-    const filterProgress = document.getElementById("filterProgress");
-    const filterDone = document.getElementById("filterDone");
-
-    if (filterAll) {
-        filterAll.onclick = () => {
-            state.trackerFilterStatus = "All";
-            state.trackerFilterPriority = "All";
-            state.trackerSelectedCategory = null;
-            resetSidebarFilterClasses(filterAll);
-            renderSidebarCategories();
-            renderChecklist();
-            closeSidebarMobile();
-        };
-    }
-
-    if (filterHigh) {
-        filterHigh.onclick = () => {
-            state.trackerFilterStatus = "All";
-            state.trackerFilterPriority = "High";
-            state.trackerSelectedCategory = null;
-            resetSidebarFilterClasses(filterHigh);
-            renderSidebarCategories();
-            renderChecklist();
-            closeSidebarMobile();
-        };
-    }
-
-    if (filterProgress) {
-        filterProgress.onclick = () => {
-            state.trackerFilterStatus = "In Progress";
-            state.trackerFilterPriority = "All";
-            state.trackerSelectedCategory = null;
-            resetSidebarFilterClasses(filterProgress);
-            renderSidebarCategories();
-            renderChecklist();
-            closeSidebarMobile();
-        };
-    }
-
-    if (filterDone) {
-        filterDone.onclick = () => {
-            state.trackerFilterStatus = "Completed";
-            state.trackerFilterPriority = "All";
-            state.trackerSelectedCategory = null;
-            resetSidebarFilterClasses(filterDone);
-            renderSidebarCategories();
-            renderChecklist();
-            closeSidebarMobile();
-        };
-    }
-}
-
+// ==========================================================================
 // PLANNER CHECKLIST VIEW IMPLEMENTATION
+// ==========================================================================
 const checklistWrapper = document.getElementById("checklistWrapper");
 
 function renderChecklist() {
@@ -221,8 +401,6 @@ function renderChecklist() {
     if (!state.trackerTasks || !Array.isArray(state.trackerTasks)) {
         state.trackerTasks = [];
     }
-
-    renderSidebarCategories();
 
     // 0. RENDER ACTIVE SYSTEM NAME FIELD
     const systemNameHeader = document.createElement("div");
@@ -246,7 +424,7 @@ function renderChecklist() {
     const completedTasks = state.trackerTasks.filter(t => t.status === "Completed").length;
     const inProgressTasks = state.trackerTasks.filter(t => t.status === "In Progress").length;
     const todoTasks = state.trackerTasks.filter(t => t.status === "To Do").length;
-
+    
     const completionPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
     const highPriority = state.trackerTasks.filter(t => t.priority === "High").length;
@@ -288,7 +466,7 @@ function renderChecklist() {
     // 1. RENDER DASHBOARD METRICS HEADER (MindForm Sheets style)
     const dashboard = document.createElement("div");
     dashboard.style.cssText = "display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:20px; margin-bottom:30px;";
-
+    
     dashboard.innerHTML = `
         <!-- Card 1: Completion Ring -->
         <div style="background:var(--bg-secondary); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; align-items:center; gap:20px; box-shadow:var(--shadow-sm);">
@@ -400,11 +578,11 @@ function renderChecklist() {
     // 2. RENDER ADD TASK INLINE FORM CARD
     const addCard = document.createElement("div");
     addCard.style.cssText = "background:var(--bg-secondary); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:30px; box-shadow:var(--shadow-sm);";
-
+    
     addCard.innerHTML = `
         <h3 style="font-size:0.95rem; font-weight:800; color:var(--text-primary); margin-bottom:14px; display:flex; align-items:center; gap:8px;">
             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            Add Task Tracker
+            Add Tracker Task
         </h3>
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:12px;">
             <div>
@@ -478,7 +656,7 @@ function renderChecklist() {
     // 3. RENDER CONTROLS ROW (Filters: Status and Priority)
     const filterRow = document.createElement("div");
     filterRow.style.cssText = "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:20px; border-bottom:1px solid var(--border-light); padding-bottom:16px;";
-
+    
     // Status Filter buttons layout
     const filterStates = ["All", "To Do", "In Progress", "Completed"];
     let filterButtonsHtml = "";
@@ -528,8 +706,7 @@ function renderChecklist() {
     const filteredTasks = state.trackerTasks.filter(task => {
         const matchesStatus = state.trackerFilterStatus === "All" || task.status === state.trackerFilterStatus;
         const matchesPriority = state.trackerFilterPriority === "All" || task.priority === state.trackerFilterPriority;
-        const matchesCategory = !state.trackerSelectedCategory || (task.category && task.category.trim() === state.trackerSelectedCategory);
-        return matchesStatus && matchesPriority && matchesCategory;
+        return matchesStatus && matchesPriority;
     });
 
     // 5. RENDER THE TASKS TABLE CONTAINER
@@ -543,11 +720,11 @@ function renderChecklist() {
 
     const tableContainer = document.createElement("div");
     tableContainer.style.cssText = "background:var(--bg-secondary); border:1px solid var(--border); border-radius:12px; overflow-x:auto; box-shadow:var(--shadow-sm);";
-
+    
     let rowsHtml = "";
     filteredTasks.forEach(task => {
         const isDone = task.status === "Completed";
-
+        
         // Priority Select Styling
         let prColor = "#3b82f6"; // Low (Blue)
         let prText = "#ffffff";
@@ -703,7 +880,7 @@ function renderQuiz(lesson) {
 
     const wrapper = document.createElement("div");
     wrapper.className = "quiz-wrapper";
-
+    
     // Generate questions markup
     let questionsHtml = "";
     lesson.quiz.forEach((q, qIndex) => {
@@ -811,7 +988,7 @@ function renderQuiz(lesson) {
 
         // Show global scores dashboard
         submitQuizBtn.textContent = "Retake Assessment";
-
+        
         // Mark chapter completed
         state.completedItems[lesson.id] = true;
         localStorage.setItem("sysnotes_completed", JSON.stringify(state.completedItems));
@@ -1005,7 +1182,7 @@ function renderSequenceDiagramVisualizer() {
 
     btn.onclick = () => {
         btn.disabled = true;
-
+        
         // Capture positions relative to parent container
         const cX = 64, gX = 236, dbX = 407;
         const yStep1 = 60, yStep2 = 110, yStep3 = 160, yStep4 = 210;
@@ -1136,7 +1313,7 @@ function renderLoadBalancingVisualizer() {
         // Nodes selection
         const servers = [0, 1, 2];
         const srvId = servers[rrIndex];
-
+        
         // Remove highlighting from previous server
         servers.forEach(idx => document.getElementById(`srv${idx}`).classList.remove("active-green"));
 
@@ -1166,7 +1343,7 @@ function renderLoadBalancingVisualizer() {
             packet.style.display = "none";
             log.textContent = `Server ${["A", "B", "C"][srvId]} processed request. HTTP 200 OK.`;
             btn.disabled = false;
-
+            
             // Advance Round Robin
             rrIndex = (rrIndex + 1) % 3;
         }, 1200);
@@ -1213,7 +1390,7 @@ function renderCacheAsideVisualizer() {
     btn.onclick = () => {
         const id = input.value.trim();
         if (!id) return;
-
+        
         btn.disabled = true;
         ndClient.classList.remove("active", "active-green");
         ndCache.classList.remove("active", "active-green");
@@ -1266,7 +1443,7 @@ function renderCacheAsideVisualizer() {
                 log.textContent = `Postgres returned records. Committing to Redis cache and returning payload to app Client.`;
                 ndDB.classList.remove("active");
                 ndDB.classList.add("active-green");
-
+                
                 // Write into cache mock
                 redisCache[id] = `User payload data for ${id}`;
             }, 2100);
@@ -1367,7 +1544,7 @@ function renderMessageQueueVisualizer() {
             target.remove(); // completed popped from buffer
             isProcessing = false;
             log.textContent = `Completed: Event ${idStr} consumed & committed (Offset updated).`;
-
+            
             // Loop for remaining queued items
             triggerConsumerEngine();
         }, 1800);
@@ -2020,10 +2197,10 @@ function renderJsEventLoopVisualizer() {
         stack.innerHTML = "";
         micro.innerHTML = "";
         macro.innerHTML = "";
-
+        
         log.textContent = "Executing synchronous script blocks...";
         pushItem(stack, "main()", "var(--text-secondary)");
-
+        
         setTimeout(() => {
             pushItem(stack, "setTimeout()", "var(--accent-orange)");
             pushItem(macro, "Timer Callback()", "rgba(249,115,22,0.7)");
@@ -2156,9 +2333,8 @@ function renderPythonGilVisualizer() {
 // ==========================================================================
 function bootstrap() {
     initTheme();
-    setupSidebarFilters();
-    renderSidebarCategories();
-    renderChecklist();
+    setMode("system-design"); // Defaults to System Design syllabus
+    updateGlobalProgress();
 }
 
 if (document.readyState === "loading") {
