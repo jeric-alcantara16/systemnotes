@@ -1,12 +1,23 @@
 // ==========================================================================
 // STATE MANAGEMENT
 // ==========================================================================
+function safeJSONParse(key, fallback = {}) {
+    try {
+        const item = localStorage.getItem(key);
+        if (item === null || item === "undefined") return fallback;
+        return JSON.parse(item);
+    } catch (e) {
+        console.error("Error parsing localStorage key " + key, e);
+        return fallback;
+    }
+}
+
 let state = {
     currentMode: "system-design", // "system-design" or "languages"
     activeChapterId: null, // ID of the currently active chapter (null = welcome/glossary/checklist)
     activeTab: "learn", // "learn", "visualizer", "quiz"
-    completedItems: JSON.parse(localStorage.getItem("sysnotes_completed")) || {},
-    checklistState: JSON.parse(localStorage.getItem("sysnotes_checklist")) || {},
+    completedItems: safeJSONParse("sysnotes_completed"),
+    checklistState: safeJSONParse("sysnotes_checklist"),
     theme: localStorage.getItem("sysnotes_theme") || "dark"
 };
 
@@ -1887,8 +1898,14 @@ function renderPythonGilVisualizer() {
 // ==========================================================================
 // BOOTSTRAP INITIALIZATION ON PAGE LOAD
 // ==========================================================================
-window.addEventListener("DOMContentLoaded", () => {
+function bootstrap() {
     initTheme();
     setMode("system-design"); // Defaults to System Design syllabus
     updateGlobalProgress();
-});
+}
+
+if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", bootstrap);
+} else {
+    bootstrap();
+}

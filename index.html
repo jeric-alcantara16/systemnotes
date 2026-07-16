@@ -1,6 +1,26 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
+    <script>
+        // Diagnostic error console helper
+        window.addEventListener('error', function(e) {
+            const container = document.createElement('div');
+            container.style.cssText = 'position:fixed; bottom:20px; right:20px; width:350px; background:#ef4444; color:#fff; font-family:monospace; font-size:11px; padding:16px; border-radius:8px; z-index:99999; box-shadow:0 10px 20px rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.15); line-height:1.4;';
+            container.innerHTML = `
+                <div style="font-weight:bold; font-size:12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+                    <span>⚠️ Script Error Detected</span>
+                    <button onclick="this.parentElement.parentElement.remove()" style="background:none; border:none; color:#fff; font-size:16px; font-weight:bold; cursor:pointer; padding:0 4px;">&times;</button>
+                </div>
+                <div style="word-break:break-all;"><strong>Message:</strong> ${e.message}</div>
+                <div style="margin-top:6px; opacity:0.8;"><strong>Source:</strong> ${e.filename}:${e.lineno}:${e.colno}</div>
+            `;
+            if (document.body) {
+                document.body.appendChild(container);
+            } else {
+                window.addEventListener('DOMContentLoaded', () => document.body.appendChild(container));
+            }
+        });
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>System Architecture & Design Masterclass</title>
