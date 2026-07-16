@@ -20,8 +20,24 @@ let state = {
     checklistState: safeJSONParse("sysnotes_checklist"),
     systems: safeJSONParse("sysnotes_systems", []),
     activeSystemId: localStorage.getItem("sysnotes_active_system_id") || null,
-    theme: localStorage.getItem("sysnotes_theme") || "dark"
+    theme: localStorage.getItem("sysnotes_theme") || "dark",
+    
+    // Task Tracker state
+    trackerTasks: safeJSONParse("sysnotes_tracker_tasks", null),
+    trackerFilterStatus: "All",
+    trackerFilterPriority: "All"
 };
+
+// Initialize default tasks if empty
+if (state.trackerTasks === null) {
+    state.trackerTasks = [
+        { id: "task_1", title: "Define Functional & Non-Functional Requirements", desc: "List core features and SLA constraints.", category: "Foundations", priority: "High", status: "Completed", dueDate: "2026-07-17" },
+        { id: "task_2", title: "Design High-Level Schema & Choose Database", desc: "Map tables/collections. Compare PostgreSQL vs MongoDB.", category: "Database", priority: "High", status: "In Progress", dueDate: "2026-07-20" },
+        { id: "task_3", title: "Configure CDN & Redis Cache Aside Routing", desc: "Set cache TTL policies and static edge delivery.", category: "Caching", priority: "Medium", status: "To Do", dueDate: "2026-07-24" },
+        { id: "task_4", title: "Implement JWT Sessions & TLS Encryption", desc: "Verify secure token payload and transport boundaries.", category: "Security", priority: "Low", status: "To Do", dueDate: "2026-07-28" }
+    ];
+    localStorage.setItem("sysnotes_tracker_tasks", JSON.stringify(state.trackerTasks));
+}
 
 // Cached lookup arrays from lessons.js
 let currentLessonsList = [];
@@ -165,7 +181,7 @@ function showView(viewName) {
     } else if (viewName === "checklist") {
         checklistView.classList.add("active");
         btnChecklist.classList.add("active");
-        breadcrumbs.innerHTML = `<span>Home</span> &nbsp;&raquo;&nbsp; <span>Planner Checklist</span>`;
+        breadcrumbs.innerHTML = `<span>Home</span> &nbsp;&raquo;&nbsp; <span>Task Tracker</span>`;
         state.activeChapterId = null;
         renderChecklist();
     } else if (viewName === "lesson") {
@@ -380,323 +396,367 @@ const checklistWrapper = document.getElementById("checklistWrapper");
 function renderChecklist() {
     checklistWrapper.innerHTML = "";
 
-    // If systems is empty or not an array, auto-create a default one
-    if (!state.systems || !Array.isArray(state.systems) || state.systems.length === 0) {
-        state.systems = [
-            { id: "sys_default", name: "Standard Web Service", completedTasks: [], customTasks: [] }
-        ];
-        state.activeSystemId = "sys_default";
-        localStorage.setItem("sysnotes_systems", JSON.stringify(state.systems));
-        localStorage.setItem("sysnotes_active_system_id", state.activeSystemId);
+    // Safely verify state.trackerTasks
+    if (!state.trackerTasks || !Array.isArray(state.trackerTasks)) {
+        state.trackerTasks = [];
     }
 
-    // Sanitize state.systems to guarantee completedTasks and customTasks are arrays
-    state.systems.forEach(sys => {
-        if (!sys || typeof sys !== 'object') return;
-        if (!sys.completedTasks || !Array.isArray(sys.completedTasks)) {
-            sys.completedTasks = [];
-        }
-        if (!sys.customTasks || !Array.isArray(sys.customTasks)) {
-            sys.customTasks = [];
-        }
-    });
+    // Statistics Calculations
+    const totalTasks = state.trackerTasks.length;
+    const completedTasks = state.trackerTasks.filter(t => t.status === "Completed").length;
+    const inProgressTasks = state.trackerTasks.filter(t => t.status === "In Progress").length;
+    const todoTasks = state.trackerTasks.filter(t => t.status === "To Do").length;
+    
+    const completionPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-    // Ensure activeSystemId is valid
-    let activeSystem = state.systems.find(sys => sys && sys.id === state.activeSystemId);
-    if (!activeSystem) {
-        activeSystem = state.systems[0];
-        state.activeSystemId = activeSystem.id;
-        localStorage.setItem("sysnotes_active_system_id", state.activeSystemId);
-    }
+    const highPriority = state.trackerTasks.filter(t => t.priority === "High").length;
+    const medPriority = state.trackerTasks.filter(t => t.priority === "Medium").length;
+    const lowPriority = state.trackerTasks.filter(t => t.priority === "Low").length;
 
-    // Calculate progress for each system
-    const systemProgressList = state.systems.map(sys => {
-        const baselineTotal = PLANNER_CHECKLIST.reduce((acc, cat) => acc + cat.items.length, 0); // 18
-        const customTotal = sys.customTasks ? sys.customTasks.length : 0;
-        const total = baselineTotal + customTotal;
-
-        const baselineCompleted = sys.completedTasks ? sys.completedTasks.length : 0;
-        const customCompleted = sys.customTasks ? sys.customTasks.filter(t => t.completed).length : 0;
-        const completed = baselineCompleted + customCompleted;
-
-        const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-        return { sys, percent, completed, total };
-    });
-
-    // Overall average percentage
-    const overallPercent = systemProgressList.length > 0 
-        ? Math.round(systemProgressList.reduce((acc, item) => acc + item.percent, 0) / systemProgressList.length)
-        : 0;
-
-    // Render Overall Dashboard
+    // 1. RENDER DASHBOARD METRICS HEADER (MindForm Sheets style)
     const dashboard = document.createElement("div");
-    dashboard.className = "planner-dashboard";
-    dashboard.style.cssText = "background:var(--bg-secondary); border:1px solid var(--border); border-radius:12px; padding:24px; margin-bottom:24px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:20px; box-shadow:var(--shadow-md);";
+    dashboard.style.cssText = "display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:20px; margin-bottom:30px;";
     
     dashboard.innerHTML = `
-        <div>
-            <h3 style="font-size:1.25rem; font-weight:800; color:var(--text-primary); margin-bottom:6px;">Overall Systems Progress</h3>
-            <p style="font-size:0.875rem; color:var(--text-secondary);">Average readiness of all active system designs under planning.</p>
-            <div style="margin-top:12px; font-size:0.85rem; color:var(--text-muted);">
-                Active Projects: <strong>${state.systems.length}</strong>
+        <!-- Card 1: Completion Ring -->
+        <div style="background:var(--bg-secondary); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; align-items:center; gap:20px; box-shadow:var(--shadow-sm);">
+            <div style="position:relative; width:70px; height:70px; border-radius:50%; background:var(--surface); display:flex; align-items:center; justify-content:center; font-size:1.25rem; font-weight:800; color:var(--accent-green); border:4px solid var(--border); box-shadow:var(--glow-green);">
+                ${completionPercent}%
+            </div>
+            <div>
+                <h4 style="font-size:0.8rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Progress Rate</h4>
+                <div style="font-size:1.4rem; font-weight:800; color:var(--text-primary); margin-top:2px;">${completedTasks}/${totalTasks}</div>
+                <div style="font-size:0.75rem; color:var(--text-secondary);">Tasks marked Done</div>
             </div>
         </div>
-        <div style="display:flex; align-items:center; gap:20px;">
-            <div style="width: 80px; height: 80px; border-radius: 50%; background: var(--surface); border: 4px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: 800; color: var(--accent-cyan); box-shadow: var(--glow-cyan);">
-                ${overallPercent}%
+
+        <!-- Card 2: Status breakdown -->
+        <div style="background:var(--bg-secondary); border:1px solid var(--border); border-radius:12px; padding:20px; box-shadow:var(--shadow-sm); display:flex; flex-direction:column; justify-content:center;">
+            <h4 style="font-size:0.8rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Status Distribution</h4>
+            <div style="display:flex; justify-content:space-between; font-size:0.85rem; font-weight:700;">
+                <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;">
+                    <span style="width:8px; height:8px; border-radius:50%; background:var(--text-muted);"></span> To Do: <strong style="color:var(--text-primary);">${todoTasks}</strong>
+                </span>
+                <span style="color:var(--accent-orange); display:flex; align-items:center; gap:6px;">
+                    <span style="width:8px; height:8px; border-radius:50%; background:var(--accent-orange);"></span> Focus: <strong style="color:var(--text-primary);">${inProgressTasks}</strong>
+                </span>
+                <span style="color:var(--accent-green); display:flex; align-items:center; gap:6px;">
+                    <span style="width:8px; height:8px; border-radius:50%; background:var(--accent-green);"></span> Done: <strong style="color:var(--text-primary);">${completedTasks}</strong>
+                </span>
+            </div>
+        </div>
+
+        <!-- Card 3: Priorities bar charts -->
+        <div style="background:var(--bg-secondary); border:1px solid var(--border); border-radius:12px; padding:20px; box-shadow:var(--shadow-sm); display:flex; flex-direction:column; justify-content:center;">
+            <h4 style="font-size:0.8rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Priority Load</h4>
+            <div style="display:flex; flex-direction:column; gap:6px; font-size:0.75rem; font-weight:600;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="width:50px; color:#ef4444;">High (${highPriority})</span>
+                    <div style="flex:1; height:6px; background:var(--surface); border-radius:3px; overflow:hidden;">
+                        <div style="height:100%; background:#ef4444; width:${totalTasks > 0 ? (highPriority / totalTasks) * 100 : 0}%;"></div>
+                    </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="width:50px; color:#eab308;">Medium (${medPriority})</span>
+                    <div style="flex:1; height:6px; background:var(--surface); border-radius:3px; overflow:hidden;">
+                        <div style="height:100%; background:#eab308; width:${totalTasks > 0 ? (medPriority / totalTasks) * 100 : 0}%;"></div>
+                    </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="width:50px; color:#3b82f6;">Low (${lowPriority})</span>
+                    <div style="flex:1; height:6px; background:var(--surface); border-radius:3px; overflow:hidden;">
+                        <div style="height:100%; background:#3b82f6; width:${totalTasks > 0 ? (lowPriority / totalTasks) * 100 : 0}%;"></div>
+                    </div>
+                </div>
             </div>
         </div>
     `;
     checklistWrapper.appendChild(dashboard);
 
-    // Render System Selector & Creator Controls
-    const controls = document.createElement("div");
-    controls.className = "planner-controls";
-    controls.style.cssText = "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:30px; background:rgba(0,0,0,0.15); border:1px solid var(--border-light); padding:16px; border-radius:10px;";
+    // 2. RENDER ADD TASK INLINE FORM CARD
+    const addCard = document.createElement("div");
+    addCard.style.cssText = "background:var(--bg-secondary); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:30px; box-shadow:var(--shadow-sm);";
     
-    // Build project selector options
-    let selectOptions = "";
-    systemProgressList.forEach(item => {
-        selectOptions += `<option value="${item.sys.id}" ${item.sys.id === state.activeSystemId ? 'selected' : ''}>${item.sys.name} (${item.percent}%)</option>`;
-    });
-
-    controls.innerHTML = `
-        <!-- Selector Dropdown -->
-        <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:260px;">
-            <label style="font-size:0.85rem; font-weight:700; color:var(--text-secondary); white-space:nowrap;">Active System:</label>
-            <select id="systemSelector" style="flex:1; background:var(--surface); border:1px solid var(--border); color:var(--text-primary); padding:10px 12px; border-radius:8px; font-family:var(--font-sans); outline:none; font-size:0.9rem; font-weight:600; cursor:pointer;">
-                ${selectOptions}
-            </select>
-        </div>
-
-        <!-- Creator Input -->
-        <div style="display:flex; align-items:center; gap:10px; flex:1.2; min-width:280px;">
-            <input type="text" id="newSystemName" placeholder="Design a new system (e.g., Chat App)..." style="flex:1; background:var(--surface); border:1px solid var(--border); color:#fff; padding:10px 12px; border-radius:8px; font-size:0.9rem; outline:none; font-family:var(--font-sans);">
-            <button class="primary-btn" id="btnCreateSystem" style="padding:10px 16px; font-size:0.85rem; white-space:nowrap;">Create System</button>
-        </div>
-    `;
-    checklistWrapper.appendChild(controls);
-
-    // Selector and Creator Action Listeners
-    const selector = controls.querySelector("#systemSelector");
-    selector.onchange = (e) => {
-        state.activeSystemId = e.target.value;
-        localStorage.setItem("sysnotes_active_system_id", state.activeSystemId);
-        renderChecklist();
-    };
-
-    const createInput = controls.querySelector("#newSystemName");
-    const createBtn = controls.querySelector("#btnCreateSystem");
-    
-    const handleCreate = () => {
-        const nameVal = createInput.value.trim();
-        if (!nameVal) return;
-        const newSys = {
-            id: "sys_" + Date.now(),
-            name: nameVal,
-            completedTasks: [],
-            customTasks: []
-        };
-        state.systems.push(newSys);
-        state.activeSystemId = newSys.id;
-        localStorage.setItem("sysnotes_systems", JSON.stringify(state.systems));
-        localStorage.setItem("sysnotes_active_system_id", state.activeSystemId);
-        renderChecklist();
-    };
-
-    createBtn.onclick = handleCreate;
-    createInput.onkeydown = (e) => { if (e.key === "Enter") handleCreate(); };
-
-    // RENDER ACTIVE SYSTEM CHECKLIST
-    const activeProg = systemProgressList.find(item => item.sys.id === state.activeSystemId);
-    if (!activeProg) return;
-    const sys = activeProg.sys;
-
-    // Active System Header Card
-    const headerCard = document.createElement("div");
-    headerCard.style.cssText = "display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px; margin-bottom:20px;";
-    headerCard.innerHTML = `
-        <div>
-            <h2 style="font-size:1.5rem; font-weight:800; color:var(--text-primary); margin:0;">${sys.name} Readiness</h2>
-            <div style="font-size:0.85rem; color:var(--text-secondary); margin-top:4px;">
-                Task Completion: <strong>${activeProg.completed}/${activeProg.total}</strong> items (${activeProg.percent}%)
+    addCard.innerHTML = `
+        <h3 style="font-size:0.95rem; font-weight:800; color:var(--text-primary); margin-bottom:14px; display:flex; align-items:center; gap:8px;">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Add Tracker Task
+        </h3>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:12px;">
+            <div>
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-secondary); margin-bottom:4px;">Task Title</label>
+                <input type="text" id="newTaskTitle" placeholder="e.g., Design API endpoints..." style="width:100%; background:var(--surface); border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:6px; font-size:0.85rem; outline:none; font-family:var(--font-sans);">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-secondary); margin-bottom:4px;">Category / Subsystem</label>
+                <input type="text" id="newTaskCategory" placeholder="e.g., API Gateway, DB..." style="width:100%; background:var(--surface); border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:6px; font-size:0.85rem; outline:none; font-family:var(--font-sans);">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-secondary); margin-bottom:4px;">Priority</label>
+                <select id="newTaskPriority" style="width:100%; background:var(--surface); border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:6px; font-size:0.85rem; outline:none; font-family:var(--font-sans); cursor:pointer;">
+                    <option value="High">High</option>
+                    <option value="Medium" selected>Medium</option>
+                    <option value="Low">Low</option>
+                </select>
+            </div>
+            <div>
+                <label style="display:block; font-size:0.75rem; font-weight:700; color:var(--text-secondary); margin-bottom:4px;">Due Date</label>
+                <input type="date" id="newTaskDueDate" style="width:100%; background:var(--surface); border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:6px; font-size:0.85rem; outline:none; font-family:var(--font-sans);">
             </div>
         </div>
-        <button class="secondary-btn" id="btnDeleteSystem" style="padding:8px 14px; font-size:0.8rem; border-color:rgba(239, 68, 68, 0.4); color:#ef4444; background:rgba(239, 68, 68, 0.05);">
-            Delete System
-        </button>
-    `;
-    checklistWrapper.appendChild(headerCard);
-
-    // Delete System Listener
-    headerCard.querySelector("#btnDeleteSystem").onclick = () => {
-        if (state.systems.length <= 1) {
-            alert("You must keep at least one active system project.");
-            return;
-        }
-        if (confirm(`Are you sure you want to delete the system "${sys.name}"?`)) {
-            state.systems = state.systems.filter(s => s.id !== sys.id);
-            state.activeSystemId = state.systems[0].id;
-            localStorage.setItem("sysnotes_systems", JSON.stringify(state.systems));
-            localStorage.setItem("sysnotes_active_system_id", state.activeSystemId);
-            renderChecklist();
-        }
-    };
-
-    // Add Custom Requirements Form
-    const customForm = document.createElement("div");
-    customForm.style.cssText = "background:var(--bg-secondary); border:1px solid var(--border-light); border-radius:10px; padding:18px; margin-bottom:28px; box-shadow:var(--shadow-sm);";
-    customForm.innerHTML = `
-        <h4 style="font-size:0.95rem; font-weight:700; color:var(--text-primary); margin-bottom:10px;">Add Custom Architecture Requirement</h4>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <input type="text" id="customTaskTitle" placeholder="Requirement title (e.g., Setup WebSockets)..." style="flex:1.2; min-width:240px; background:var(--surface); border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:6px; font-size:0.85rem; outline:none; font-family:var(--font-sans);">
-            <input type="text" id="customTaskDesc" placeholder="Brief description (optional)..." style="flex:1.8; min-width:300px; background:var(--surface); border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:6px; font-size:0.85rem; outline:none; font-family:var(--font-sans);">
-            <button class="primary-btn" id="btnAddCustomTask" style="padding:8px 16px; font-size:0.85rem; background:var(--gradient-success); color:#fff; box-shadow:none;">Add Task</button>
+        <div style="display:flex; align-items:center; gap:12px; margin-top:16px;">
+            <input type="text" id="newTaskDesc" placeholder="Brief requirement details / description (optional)..." style="flex:1; background:var(--surface); border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:6px; font-size:0.85rem; outline:none; font-family:var(--font-sans);">
+            <button class="primary-btn" id="btnAddTask" style="padding:8px 18px; font-size:0.85rem; background:var(--gradient-success); color:#fff; box-shadow:none;">Add Task</button>
         </div>
     `;
-    checklistWrapper.appendChild(customForm);
+    checklistWrapper.appendChild(addCard);
 
-    // Custom Task Add Listener
-    const tTitle = customForm.querySelector("#customTaskTitle");
-    const tDesc = customForm.querySelector("#customTaskDesc");
-    const tBtn = customForm.querySelector("#btnAddCustomTask");
+    // Event Listener for Adding Tasks
+    const tTitle = addCard.querySelector("#newTaskTitle");
+    const tCategory = addCard.querySelector("#newTaskCategory");
+    const tPriority = addCard.querySelector("#newTaskPriority");
+    const tDueDate = addCard.querySelector("#newTaskDueDate");
+    const tDesc = addCard.querySelector("#newTaskDesc");
+    const tBtn = addCard.querySelector("#btnAddTask");
+
+    // Set today's date default
+    const today = new Date().toISOString().split('T')[0];
+    tDueDate.value = today;
 
     const handleAddTask = () => {
         const titleVal = tTitle.value.trim();
-        if (!titleVal) return;
-        const descVal = tDesc.value.trim() || "User defined custom design checklist requirement.";
-        
-        if (!sys.customTasks) sys.customTasks = [];
-        sys.customTasks.push({
-            id: "cust_" + Date.now(),
+        if (!titleVal) {
+            alert("Please enter a task title.");
+            return;
+        }
+
+        const categoryVal = tCategory.value.trim() || "General";
+        const descVal = tDesc.value.trim() || "No extra description provided.";
+        const priorityVal = tPriority.value;
+        const dueDateVal = tDueDate.value || today;
+
+        state.trackerTasks.push({
+            id: "task_" + Date.now(),
             title: titleVal,
+            category: categoryVal,
             desc: descVal,
-            completed: false
+            priority: priorityVal,
+            dueDate: dueDateVal,
+            status: "To Do"
         });
 
-        localStorage.setItem("sysnotes_systems", JSON.stringify(state.systems));
+        localStorage.setItem("sysnotes_tracker_tasks", JSON.stringify(state.trackerTasks));
         renderChecklist();
     };
+
     tBtn.onclick = handleAddTask;
-    tDesc.onkeydown = (e) => { if (e.key === "Enter") handleAddTask(); };
 
-    // Render baseline checklist categories
-    PLANNER_CHECKLIST.forEach(group => {
-        const groupEl = document.createElement("div");
-        groupEl.className = "checklist-group";
-        groupEl.style.cssText = "background-color:var(--bg-secondary); border:1px solid var(--border); border-radius:12px; padding:24px; margin-bottom:24px; box-shadow:var(--shadow-sm);";
-        
-        // Calculate items completed for this specific group
-        const total = group.items.length;
-        const checked = group.items.filter(item => sys.completedTasks.includes(item.id)).length;
-        const percent = total > 0 ? Math.round((checked / total) * 100) : 0;
-
-        groupEl.innerHTML = `
-            <div class="checklist-group-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-light); padding-bottom:14px; margin-bottom:18px;">
-                <span class="checklist-group-title" style="font-weight:700; color:var(--text-primary); font-size:1.1rem;">${group.category}</span>
-                <span class="checklist-group-progress" style="font-size:0.8rem; font-weight:700; color:var(--text-muted);">${checked}/${total} Done (${percent}%)</span>
-            </div>
-            <div class="checklist-items" style="display:flex; flex-direction:column; gap:12px;"></div>
+    // 3. RENDER CONTROLS ROW (Filters: Status and Priority)
+    const filterRow = document.createElement("div");
+    filterRow.style.cssText = "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:20px; border-bottom:1px solid var(--border-light); padding-bottom:16px;";
+    
+    // Status Filter buttons layout
+    const filterStates = ["All", "To Do", "In Progress", "Completed"];
+    let filterButtonsHtml = "";
+    filterStates.forEach(fs => {
+        const isActive = state.trackerFilterStatus === fs;
+        filterButtonsHtml += `
+            <button class="filter-status-btn ${isActive ? 'active' : ''}" data-status="${fs}" style="background:${isActive ? 'var(--accent-cyan)' : 'var(--surface)'}; color:${isActive ? '#0f172a' : 'var(--text-secondary)'}; border:none; padding:6px 14px; font-size:0.8rem; font-weight:700; border-radius:6px; cursor:pointer; transition:var(--transition-smooth); margin-right:4px;">
+                ${fs}
+            </button>
         `;
-
-        const itemsContainer = groupEl.querySelector(".checklist-items");
-
-        group.items.forEach(item => {
-            const isChecked = sys.completedTasks.includes(item.id);
-            
-            const itemEl = document.createElement("div");
-            itemEl.className = "checklist-item";
-            itemEl.style.cssText = "display:flex; align-items:flex-start; gap:12px; padding:8px 12px; border-radius:6px; cursor:pointer; transition:var(--transition-smooth);";
-            
-            itemEl.innerHTML = `
-                <div class="checklist-checkbox-container ${isChecked ? 'checked' : ''}" style="display:flex; align-items:center; justify-content:center; width:20px; height:20px; border:2px solid var(--border); border-radius:4px; margin-top:2px; cursor:pointer; transition:var(--transition-smooth);">
-                    <svg viewBox="0 0 24 24" width="12" height="12" stroke="${isChecked ? '#0f172a' : 'currentColor'}" stroke-width="4" fill="none" style="display:${isChecked ? 'block' : 'none'}"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                </div>
-                <div class="checklist-text-wrapper" style="flex:1;">
-                    <div class="checklist-item-title" style="${isChecked ? 'color:var(--text-muted); text-decoration:line-through;' : 'color:var(--text-primary); font-weight:600; font-size:0.95rem;'}">${item.title}</div>
-                    <div class="checklist-item-desc" style="font-size:0.85rem; color:var(--text-secondary); margin-top:4px;">${item.desc}</div>
-                </div>
-            `;
-
-            itemEl.addEventListener("click", (e) => {
-                if (isChecked) {
-                    sys.completedTasks = sys.completedTasks.filter(tid => tid !== item.id);
-                } else {
-                    sys.completedTasks.push(item.id);
-                }
-                localStorage.setItem("sysnotes_systems", JSON.stringify(state.systems));
-                renderChecklist();
-            });
-
-            itemsContainer.appendChild(itemEl);
-        });
-
-        checklistWrapper.appendChild(groupEl);
     });
 
-    // Render Custom Requirements category
-    if (sys.customTasks && sys.customTasks.length > 0) {
-        const groupEl = document.createElement("div");
-        groupEl.className = "checklist-group";
-        groupEl.style.cssText = "background-color:var(--bg-secondary); border:1px solid var(--border); border-radius:12px; padding:24px; margin-bottom:24px; box-shadow:var(--shadow-sm);";
-        
-        const total = sys.customTasks.length;
-        const checked = sys.customTasks.filter(t => t.completed).length;
-        const percent = Math.round((checked / total) * 100);
+    filterRow.innerHTML = `
+        <!-- Left side: Status Filter Buttons -->
+        <div style="display:flex; flex-wrap:wrap;">
+            ${filterButtonsHtml}
+        </div>
 
-        groupEl.innerHTML = `
-            <div class="checklist-group-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-light); padding-bottom:14px; margin-bottom:18px;">
-                <span class="checklist-group-title" style="font-weight:700; color:var(--accent-purple); font-size:1.1rem;">Custom Architecture Tasks</span>
-                <span class="checklist-group-progress" style="font-size:0.8rem; font-weight:700; color:var(--text-muted);">${checked}/${total} Done (${percent}%)</span>
-            </div>
-            <div class="checklist-items" style="display:flex; flex-direction:column; gap:12px;"></div>
-        `;
+        <!-- Right side: Priority Dropdown Filter -->
+        <div style="display:flex; align-items:center; gap:8px;">
+            <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Priority:</label>
+            <select id="filterPriorityDropdown" style="background:var(--surface); border:1px solid var(--border); color:var(--text-primary); padding:6px 10px; border-radius:6px; font-family:var(--font-sans); outline:none; font-size:0.8rem; font-weight:600; cursor:pointer;">
+                <option value="All" ${state.trackerFilterPriority === "All" ? 'selected' : ''}>All Priorities</option>
+                <option value="High" ${state.trackerFilterPriority === "High" ? 'selected' : ''}>High</option>
+                <option value="Medium" ${state.trackerFilterPriority === "Medium" ? 'selected' : ''}>Medium</option>
+                <option value="Low" ${state.trackerFilterPriority === "Low" ? 'selected' : ''}>Low</option>
+            </select>
+        </div>
+    `;
+    checklistWrapper.appendChild(filterRow);
 
-        const itemsContainer = groupEl.querySelector(".checklist-items");
+    // Filter Listeners
+    filterRow.querySelectorAll(".filter-status-btn").forEach(btn => {
+        btn.onclick = () => {
+            state.trackerFilterStatus = btn.getAttribute("data-status");
+            renderChecklist();
+        };
+    });
 
-        sys.customTasks.forEach(item => {
-            const isChecked = item.completed;
-            
-            const itemEl = document.createElement("div");
-            itemEl.className = "checklist-item";
-            itemEl.style.cssText = "display:flex; align-items:flex-start; gap:12px; padding:8px 12px; border-radius:6px; cursor:pointer; transition:var(--transition-smooth); position:relative;";
-            
-            itemEl.innerHTML = `
-                <div class="checklist-checkbox-container ${isChecked ? 'checked' : ''}" style="display:flex; align-items:center; justify-content:center; width:20px; height:20px; border:2px solid var(--border); border-radius:4px; margin-top:2px; cursor:pointer; transition:var(--transition-smooth);">
-                    <svg viewBox="0 0 24 24" width="12" height="12" stroke="${isChecked ? '#0f172a' : 'currentColor'}" stroke-width="4" fill="none" style="display:${isChecked ? 'block' : 'none'}"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                </div>
-                <div class="checklist-text-wrapper" style="flex:1; padding-right:40px;">
-                    <div class="checklist-item-title" style="${isChecked ? 'color:var(--text-muted); text-decoration:line-through;' : 'color:var(--text-primary); font-weight:600; font-size:0.95rem;'}">${item.title}</div>
-                    <div class="checklist-item-desc" style="font-size:0.85rem; color:var(--text-secondary); margin-top:4px;">${item.desc}</div>
-                </div>
-                <button class="task-delete-btn" style="position:absolute; right:12px; top:12px; background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.1rem; transition:var(--transition-smooth); line-height:1;">
-                    &times;
-                </button>
-            `;
+    const priorityFilter = filterRow.querySelector("#filterPriorityDropdown");
+    priorityFilter.onchange = (e) => {
+        state.trackerFilterPriority = e.target.value;
+        renderChecklist();
+    };
 
-            // Checkbox Toggling Action
-            itemEl.addEventListener("click", (e) => {
-                // If they clicked the delete button, don't toggle checkbox
-                if (e.target.classList.contains("task-delete-btn")) return;
-                
-                item.completed = !item.completed;
-                localStorage.setItem("sysnotes_systems", JSON.stringify(state.systems));
-                renderChecklist();
-            });
+    // 4. FILTER THE TASKS
+    const filteredTasks = state.trackerTasks.filter(task => {
+        const matchesStatus = state.trackerFilterStatus === "All" || task.status === state.trackerFilterStatus;
+        const matchesPriority = state.trackerFilterPriority === "All" || task.priority === state.trackerFilterPriority;
+        return matchesStatus && matchesPriority;
+    });
 
-            // Delete Task Action
-            itemEl.querySelector(".task-delete-btn").onclick = (e) => {
-                e.stopPropagation();
-                sys.customTasks = sys.customTasks.filter(t => t.id !== item.id);
-                localStorage.setItem("sysnotes_systems", JSON.stringify(state.systems));
-                renderChecklist();
-            };
-
-            itemsContainer.appendChild(itemEl);
-        });
-
-        checklistWrapper.appendChild(groupEl);
+    // 5. RENDER THE TASKS TABLE CONTAINER
+    if (filteredTasks.length === 0) {
+        const emptyState = document.createElement("div");
+        emptyState.style.cssText = "text-align:center; padding:40px; border:1.5px dashed var(--border); border-radius:12px; color:var(--text-secondary); font-size:0.9rem; margin-top:10px;";
+        emptyState.textContent = "No tasks found matching active filter. Create or filter items above!";
+        checklistWrapper.appendChild(emptyState);
+        return;
     }
+
+    const tableContainer = document.createElement("div");
+    tableContainer.style.cssText = "background:var(--bg-secondary); border:1px solid var(--border); border-radius:12px; overflow-x:auto; box-shadow:var(--shadow-sm);";
+    
+    let rowsHtml = "";
+    filteredTasks.forEach(task => {
+        const isDone = task.status === "Completed";
+        
+        // Priority Select Styling
+        let prColor = "#3b82f6"; // Low (Blue)
+        let prText = "#ffffff";
+        if (task.priority === "High") { prColor = "rgba(239, 68, 68, 0.15)"; prText = "#ef4444"; }
+        else if (task.priority === "Medium") { prColor = "rgba(234, 179, 8, 0.15)"; prText = "#eab308"; }
+        else if (task.priority === "Low") { prColor = "rgba(59, 130, 246, 0.15)"; prText = "#3b82f6"; }
+
+        // Status Select Styling
+        let stColor = "var(--surface)";
+        let stText = "var(--text-secondary)";
+        if (task.status === "Completed") { stColor = "rgba(16, 185, 129, 0.15)"; stText = "#10b981"; }
+        else if (task.status === "In Progress") { stColor = "rgba(249, 115, 22, 0.15)"; stText = "#f97316"; }
+
+        rowsHtml += `
+            <tr style="border-bottom:1px solid var(--border-light);" data-task-id="${task.id}">
+                <!-- Checkbox -->
+                <td style="padding:16px; text-align:center; width:60px;">
+                    <div class="task-grid-checkbox ${isDone ? 'checked' : ''}" style="display:flex; align-items:center; justify-content:center; width:20px; height:20px; border:2px solid var(--border); border-radius:4px; cursor:pointer; transition:var(--transition-smooth); margin: 0 auto; background:${isDone ? 'var(--accent-green)' : 'transparent'}; border-color:${isDone ? 'var(--accent-green)' : 'var(--border)'};">
+                        <svg viewBox="0 0 24 24" width="12" height="12" stroke="${isDone ? '#0f172a' : 'currentColor'}" stroke-width="4" fill="none" style="display:${isDone ? 'block' : 'none'}"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </div>
+                </td>
+                
+                <!-- Task Title & Description -->
+                <td style="padding:16px; min-width:240px; cursor:pointer;" class="task-name-cell">
+                    <div style="font-weight:700; font-size:0.925rem; color:${isDone ? 'var(--text-muted)' : 'var(--text-primary)'}; text-decoration:${isDone ? 'line-through' : 'none'};">${task.title}</div>
+                    <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">${task.desc}</div>
+                </td>
+
+                <!-- Category -->
+                <td style="padding:16px; text-align:center; width:120px;">
+                    <span style="background:var(--surface); color:var(--text-secondary); padding:4px 10px; border-radius:6px; font-size:0.75rem; font-weight:700;">${task.category}</span>
+                </td>
+
+                <!-- Priority Select Dropdown -->
+                <td style="padding:16px; text-align:center; width:120px;">
+                    <select class="grid-priority-select" style="background:${prColor}; color:${prText}; border:none; padding:4px 8px; border-radius:6px; font-size:0.75rem; font-weight:700; outline:none; cursor:pointer;">
+                        <option value="High" ${task.priority === "High" ? 'selected' : ''}>🔴 High</option>
+                        <option value="Medium" ${task.priority === "Medium" ? 'selected' : ''}>🟡 Medium</option>
+                        <option value="Low" ${task.priority === "Low" ? 'selected' : ''}>🔵 Low</option>
+                    </select>
+                </td>
+
+                <!-- Status Select Dropdown -->
+                <td style="padding:16px; text-align:center; width:140px;">
+                    <select class="grid-status-select" style="background:${stColor}; color:${stText}; border:none; padding:4px 8px; border-radius:6px; font-size:0.75rem; font-weight:700; outline:none; cursor:pointer;">
+                        <option value="To Do" ${task.status === "To Do" ? 'selected' : ''}>To Do</option>
+                        <option value="In Progress" ${task.status === "In Progress" ? 'selected' : ''}>In Progress</option>
+                        <option value="Completed" ${task.status === "Completed" ? 'selected' : ''}>Completed</option>
+                    </select>
+                </td>
+
+                <!-- Due Date -->
+                <td style="padding:16px; text-align:center; width:125px;">
+                    <input type="date" class="grid-due-date" value="${task.dueDate}" style="background:none; border:none; color:var(--text-secondary); font-family:var(--font-sans); font-size:0.8rem; cursor:pointer; outline:none; text-align:center;">
+                </td>
+
+                <!-- Delete -->
+                <td style="padding:16px; text-align:center; width:60px;">
+                    <button class="grid-delete-btn" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.2rem; line-height:1; transition:var(--transition-smooth);">
+                        &times;
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+
+    tableContainer.innerHTML = `
+        <table style="width:100%; border-collapse:collapse; text-align:left;">
+            <thead>
+                <tr style="background:var(--surface); border-bottom:2px solid var(--border); font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-weight:800;">
+                    <th style="padding:12px; text-align:center;">Done</th>
+                    <th style="padding:12px;">Task Details</th>
+                    <th style="padding:12px; text-align:center;">Category</th>
+                    <th style="padding:12px; text-align:center;">Priority</th>
+                    <th style="padding:12px; text-align:center;">Status</th>
+                    <th style="padding:12px; text-align:center;">Due Date</th>
+                    <th style="padding:12px; text-align:center;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${rowsHtml}
+            </tbody>
+        </table>
+    `;
+    checklistWrapper.appendChild(tableContainer);
+
+    // Setup Row Interactability Actions
+    tableContainer.querySelectorAll("tbody tr").forEach(row => {
+        const taskId = row.getAttribute("data-task-id");
+        const task = state.trackerTasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        // Toggle Done Checkbox
+        row.querySelector(".task-grid-checkbox").onclick = () => {
+            if (task.status === "Completed") {
+                task.status = "To Do";
+            } else {
+                task.status = "Completed";
+            }
+            localStorage.setItem("sysnotes_tracker_tasks", JSON.stringify(state.trackerTasks));
+            renderChecklist();
+        };
+
+        // Edit Priority dropdown
+        const pSelect = row.querySelector(".grid-priority-select");
+        pSelect.onchange = (e) => {
+            task.priority = e.target.value;
+            localStorage.setItem("sysnotes_tracker_tasks", JSON.stringify(state.trackerTasks));
+            renderChecklist();
+        };
+
+        // Edit Status dropdown
+        const sSelect = row.querySelector(".grid-status-select");
+        sSelect.onchange = (e) => {
+            task.status = e.target.value;
+            localStorage.setItem("sysnotes_tracker_tasks", JSON.stringify(state.trackerTasks));
+            renderChecklist();
+        };
+
+        // Edit Due Date
+        const dInput = row.querySelector(".grid-due-date");
+        dInput.onchange = (e) => {
+            task.dueDate = e.target.value;
+            localStorage.setItem("sysnotes_tracker_tasks", JSON.stringify(state.trackerTasks));
+            renderChecklist();
+        };
+
+        // Delete Row
+        row.querySelector(".grid-delete-btn").onclick = () => {
+            state.trackerTasks = state.trackerTasks.filter(t => t.id !== taskId);
+            localStorage.setItem("sysnotes_tracker_tasks", JSON.stringify(state.trackerTasks));
+            renderChecklist();
+        };
+    });
 }
 
 // ==========================================================================
