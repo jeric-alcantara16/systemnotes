@@ -821,8 +821,10 @@ function renderChecklist() {
         row.querySelector(".task-grid-checkbox").onclick = () => {
             if (task.status === "Completed") {
                 task.status = "To Do";
+                task.completedAt = null;
             } else {
                 task.status = "Completed";
+                task.completedAt = new Date().toISOString().split('T')[0];
             }
             localStorage.setItem("sysnotes_tracker_tasks", JSON.stringify(state.trackerTasks));
             renderChecklist();
@@ -840,6 +842,11 @@ function renderChecklist() {
         const sSelect = row.querySelector(".grid-status-select");
         sSelect.onchange = (e) => {
             task.status = e.target.value;
+            if (task.status === "Completed") {
+                task.completedAt = new Date().toISOString().split('T')[0];
+            } else {
+                task.completedAt = null;
+            }
             localStorage.setItem("sysnotes_tracker_tasks", JSON.stringify(state.trackerTasks));
             renderChecklist();
         };
