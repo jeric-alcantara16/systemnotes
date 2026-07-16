@@ -1412,7 +1412,7 @@ class DatabaseConnector:
         return f"Executing {sql} against {self.dsn}"</code></pre>
 
             <h2>3. Advanced: Concurrency & Asyncio</h2>
-            <p>Python historically struggled with thread-based parallel CPU execution because of the **Global Interpreter Lock (GIL)**. For I/O bound workloads (like network APIs), Python utilizes modern async event loops via `asyncio`.</p>
+            <p>Python historically struggled with thread-based parallel CPU execution because of the **Global Interpreter Lock (GIL)**. For I/O bound workloads (like network APIs), Python utilizes modern async event loops via <code>asyncio</code>.</p>
             <pre><code>import asyncio
 
 async def fetch_api_data(endpoint: str):
