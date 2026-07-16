@@ -25,7 +25,8 @@ let state = {
     // Task Tracker state
     trackerTasks: safeJSONParse("sysnotes_tracker_tasks", null),
     trackerFilterStatus: "All",
-    trackerFilterPriority: "All"
+    trackerFilterPriority: "All",
+    trackerSystemName: localStorage.getItem("sysnotes_system_name") || "My System Architecture"
 };
 
 // Initialize default tasks if empty
@@ -223,6 +224,23 @@ function renderChecklist() {
 
     renderSidebarCategories();
 
+    // 0. RENDER ACTIVE SYSTEM NAME FIELD
+    const systemNameHeader = document.createElement("div");
+    systemNameHeader.style.cssText = "display:flex; align-items:center; gap:16px; margin-bottom:24px; padding:16px; background:var(--bg-secondary); border:1px solid var(--border); border-radius:10px; flex-wrap:wrap;";
+    systemNameHeader.innerHTML = `
+        <label style="font-size:0.85rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap;">Active System Under Design:</label>
+        <input type="text" id="activeSystemNameField" placeholder="Enter system name (e.g. Video Streaming API)..." style="flex:1; min-width:280px; background:var(--surface); border:1px solid var(--border); color:#fff; padding:8px 14px; border-radius:6px; font-size:1rem; outline:none; font-family:var(--font-sans); font-weight:700; border-color:var(--accent-cyan); box-shadow:var(--glow-cyan); transition:var(--transition-smooth);">
+    `;
+    checklistWrapper.appendChild(systemNameHeader);
+
+    // Event listener for active system name edits
+    const sysNameField = systemNameHeader.querySelector("#activeSystemNameField");
+    sysNameField.value = state.trackerSystemName || "";
+    sysNameField.oninput = (e) => {
+        state.trackerSystemName = e.target.value;
+        localStorage.setItem("sysnotes_system_name", state.trackerSystemName);
+    };
+
     // Statistics Calculations
     const totalTasks = state.trackerTasks.length;
     const completedTasks = state.trackerTasks.filter(t => t.status === "Completed").length;
@@ -234,6 +252,38 @@ function renderChecklist() {
     const highPriority = state.trackerTasks.filter(t => t.priority === "High").length;
     const medPriority = state.trackerTasks.filter(t => t.priority === "Medium").length;
     const lowPriority = state.trackerTasks.filter(t => t.priority === "Low").length;
+
+    // Calculate timeframe analytics metrics
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+
+    // Current week start (Monday) and end (Sunday)
+    const currentDay = now.getDay();
+    const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay; // adjust for Sunday
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + distanceToMonday);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+
+    const mondayStr = monday.toISOString().split('T')[0];
+    const sundayStr = sunday.toISOString().split('T')[0];
+
+    const currentMonthStr = todayStr.substring(0, 7); // "YYYY-MM"
+    const currentYearStr = todayStr.substring(0, 4); // "YYYY"
+
+    // Helper calculation function
+    const getTimeframeStats = (filterFn) => {
+        const tasks = state.trackerTasks.filter(filterFn);
+        const total = tasks.length;
+        const completed = tasks.filter(t => t.status === "Completed").length;
+        const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+        return { total, completed, percent };
+    };
+
+    const dayStats = getTimeframeStats(t => t.dueDate === todayStr);
+    const weekStats = getTimeframeStats(t => t.dueDate && t.dueDate >= mondayStr && t.dueDate <= sundayStr);
+    const monthStats = getTimeframeStats(t => t.dueDate && t.dueDate.startsWith(currentMonthStr));
+    const yearStats = getTimeframeStats(t => t.dueDate && t.dueDate.startsWith(currentYearStr));
 
     // 1. RENDER DASHBOARD METRICS HEADER (MindForm Sheets style)
     const dashboard = document.createElement("div");
@@ -294,6 +344,58 @@ function renderChecklist() {
         </div>
     `;
     checklistWrapper.appendChild(dashboard);
+
+    // 1.5 RENDER TIMEFRAME ANALYTICS GRAPHS ROW
+    const analyticsRow = document.createElement("div");
+    analyticsRow.style.cssText = "background:var(--bg-secondary); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:30px; box-shadow:var(--shadow-sm);";
+    analyticsRow.innerHTML = `
+        <h3 style="font-size:0.9rem; font-weight:800; color:var(--text-primary); margin-bottom:18px; display:flex; align-items:center; gap:8px; text-transform:uppercase; letter-spacing:0.5px;">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+            Task Progress Graphs By Timeframe
+        </h3>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:20px;">
+            <!-- Day -->
+            <div style="background:var(--surface); border:1px solid var(--border-light); border-radius:8px; padding:16px; text-align:center;">
+                <div style="font-size:0.75rem; font-weight:800; color:var(--text-muted); margin-bottom:10px;">TODAY</div>
+                <div style="font-size:1.4rem; font-weight:800; color:var(--accent-cyan); margin-bottom:12px;">${dayStats.completed}/${dayStats.total} <span style="font-size:0.8rem; font-weight:600; color:var(--text-secondary);">Done</span></div>
+                <div style="height:12px; background:var(--bg-secondary); border-radius:6px; overflow:hidden; border:1px solid var(--border);">
+                    <div style="height:100%; width:${dayStats.percent}%; background:linear-gradient(90deg, var(--accent-cyan), var(--accent-green)); transition:width 0.4s ease;"></div>
+                </div>
+                <div style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); margin-top:8px;">${dayStats.percent}% Completed</div>
+            </div>
+
+            <!-- Week -->
+            <div style="background:var(--surface); border:1px solid var(--border-light); border-radius:8px; padding:16px; text-align:center;">
+                <div style="font-size:0.75rem; font-weight:800; color:var(--text-muted); margin-bottom:10px;">THIS WEEK</div>
+                <div style="font-size:1.4rem; font-weight:800; color:var(--accent-cyan); margin-bottom:12px;">${weekStats.completed}/${weekStats.total} <span style="font-size:0.8rem; font-weight:600; color:var(--text-secondary);">Done</span></div>
+                <div style="height:12px; background:var(--bg-secondary); border-radius:6px; overflow:hidden; border:1px solid var(--border);">
+                    <div style="height:100%; width:${weekStats.percent}%; background:linear-gradient(90deg, var(--accent-cyan), var(--accent-green)); transition:width 0.4s ease;"></div>
+                </div>
+                <div style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); margin-top:8px;">${weekStats.percent}% Completed</div>
+            </div>
+
+            <!-- Month -->
+            <div style="background:var(--surface); border:1px solid var(--border-light); border-radius:8px; padding:16px; text-align:center;">
+                <div style="font-size:0.75rem; font-weight:800; color:var(--text-muted); margin-bottom:10px;">THIS MONTH</div>
+                <div style="font-size:1.4rem; font-weight:800; color:var(--accent-cyan); margin-bottom:12px;">${monthStats.completed}/${monthStats.total} <span style="font-size:0.8rem; font-weight:600; color:var(--text-secondary);">Done</span></div>
+                <div style="height:12px; background:var(--bg-secondary); border-radius:6px; overflow:hidden; border:1px solid var(--border);">
+                    <div style="height:100%; width:${monthStats.percent}%; background:linear-gradient(90deg, var(--accent-cyan), var(--accent-green)); transition:width 0.4s ease;"></div>
+                </div>
+                <div style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); margin-top:8px;">${monthStats.percent}% Completed</div>
+            </div>
+
+            <!-- Year -->
+            <div style="background:var(--surface); border:1px solid var(--border-light); border-radius:8px; padding:16px; text-align:center;">
+                <div style="font-size:0.75rem; font-weight:800; color:var(--text-muted); margin-bottom:10px;">THIS YEAR</div>
+                <div style="font-size:1.4rem; font-weight:800; color:var(--accent-cyan); margin-bottom:12px;">${yearStats.completed}/${yearStats.total} <span style="font-size:0.8rem; font-weight:600; color:var(--text-secondary);">Done</span></div>
+                <div style="height:12px; background:var(--bg-secondary); border-radius:6px; overflow:hidden; border:1px solid var(--border);">
+                    <div style="height:100%; width:${yearStats.percent}%; background:linear-gradient(90deg, var(--accent-cyan), var(--accent-green)); transition:width 0.4s ease;"></div>
+                </div>
+                <div style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); margin-top:8px;">${yearStats.percent}% Completed</div>
+            </div>
+        </div>
+    `;
+    checklistWrapper.appendChild(analyticsRow);
 
     // 2. RENDER ADD TASK INLINE FORM CARD
     const addCard = document.createElement("div");
