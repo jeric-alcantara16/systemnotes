@@ -523,57 +523,190 @@ function renderChecklist() {
     `;
     checklistWrapper.appendChild(dashboard);
 
-    // 1.5 RENDER TIMEFRAME ANALYTICS GRAPHS ROW
+    // 1.5 RENDER TIMEFRAME LINE GRAPH CARD
+    // Calculate timeframe line graph metrics
+    if (!state.trackerGraphTab) {
+        state.trackerGraphTab = "Daily";
+    }
+
+    let graphLabels = [];
+    let graphValues = [];
+
+    if (state.trackerGraphTab === "Daily") {
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dateStr = d.toISOString().split('T')[0];
+            const label = d.toLocaleDateString('en-US', { weekday: 'short' });
+            graphLabels.push(label);
+            
+            const count = state.trackerTasks.filter(t => t.status === "Completed" && (t.completedAt === dateStr || (!t.completedAt && t.dueDate === dateStr))).length;
+            graphValues.push(count);
+        }
+    } else if (state.trackerGraphTab === "Weekly") {
+        graphLabels = ["Wk 1", "Wk 2", "Wk 3", "Wk 4"];
+        graphValues = [0, 0, 0, 0];
+        const nowMs = Date.now();
+        const dayMs = 24 * 60 * 60 * 1000;
+        
+        state.trackerTasks.forEach(t => {
+            if (t.status === "Completed") {
+                const tDateStr = t.completedAt || t.dueDate;
+                if (tDateStr) {
+                    const tMs = new Date(tDateStr).getTime();
+                    const diffDays = Math.floor((nowMs - tMs) / dayMs);
+                    if (diffDays >= 0 && diffDays < 28) {
+                        const weekIdx = 3 - Math.floor(diffDays / 7);
+                        if (weekIdx >= 0 && weekIdx < 4) {
+                            graphValues[weekIdx]++;
+                        }
+                    }
+                }
+            }
+        });
+    } else if (state.trackerGraphTab === "Monthly") {
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            const yearMonth = d.toISOString().split('T')[0].substring(0, 7);
+            const label = d.toLocaleDateString('en-US', { month: 'short' });
+            graphLabels.push(label);
+            
+            const count = state.trackerTasks.filter(t => {
+                if (t.status !== "Completed") return false;
+                const tDateStr = t.completedAt || t.dueDate;
+                return tDateStr && tDateStr.startsWith(yearMonth);
+            }).length;
+            graphValues.push(count);
+        }
+    } else if (state.trackerGraphTab === "Yearly") {
+        const currentYear = new Date().getFullYear();
+        for (let i = 2; i >= 0; i--) {
+            const yr = currentYear - i;
+            graphLabels.push(yr.toString());
+            
+            const count = state.trackerTasks.filter(t => {
+                if (t.status !== "Completed") return false;
+                const tDateStr = t.completedAt || t.dueDate;
+                return tDateStr && tDateStr.startsWith(yr.toString());
+            }).length;
+            graphValues.push(count);
+        }
+    }
+
+    // SVG plotting variables
+    const svgW = 500;
+    const svgH = 150;
+    const paddingX = 40;
+    const paddingRight = 20;
+    const availW = svgW - paddingX - paddingRight;
+
+    // Calculate Y scale
+    const maxVal = Math.max(...graphValues, 4); // Scale to at least 4 so the line has room to breathe
+    
+    // Draw points
+    let points = [];
+    for (let i = 0; i < graphLabels.length; i++) {
+        const x = paddingX + (i / (graphLabels.length - 1)) * availW;
+        const y = svgH - (graphValues[i] / maxVal) * (svgH - 40) - 20;
+        points.push({ x, y, val: graphValues[i], label: graphLabels[i] });
+    }
+
+    // Build SVG Path
+    let pathD = "";
+    let fillD = "";
+    if (points.length > 0) {
+        pathD = `M ${points[0].x} ${points[0].y}`;
+        fillD = `M ${points[0].x} ${svgH} L ${points[0].x} ${points[0].y}`;
+        for (let i = 1; i < points.length; i++) {
+            pathD += ` L ${points[i].x} ${points[i].y}`;
+            fillD += ` L ${points[i].x} ${points[i].y}`;
+        }
+        fillD += ` L ${points[points.length - 1].x} ${svgH} Z`;
+    }
+
+    // Draw horizontal guidelines
+    let guideLinesHtml = "";
+    const numGuides = 3;
+    for (let i = 0; i <= numGuides; i++) {
+        const val = Math.round((i / numGuides) * maxVal);
+        const y = svgH - (val / maxVal) * (svgH - 40) - 20;
+        guideLinesHtml += `
+            <line x1="${paddingX}" y1="${y}" x2="${svgW - paddingRight}" y2="${y}" stroke="var(--border-light)" stroke-width="1" stroke-dasharray="4 4" />
+            <text x="${paddingX - 10}" y="${y + 4}" text-anchor="end" fill="var(--text-muted)" style="font-size:0.7rem; font-weight:700;">${val}</text>
+        `;
+    }
+
+    // Draw X Axis labels
+    let xAxisLabelsHtml = "";
+    points.forEach(pt => {
+        xAxisLabelsHtml += `
+            <text x="${pt.x}" y="${svgH + 18}" text-anchor="middle" fill="var(--text-secondary)" style="font-size:0.75rem; font-weight:800;">${pt.label}</text>
+        `;
+    });
+
+    // Draw data line path, glowing markers, and overlays
+    let svgGraphicHtml = `
+        <svg viewBox="0 0 ${svgW} ${svgH + 25}" style="width:100%; height:180px; overflow:visible; display:block;">
+            <defs>
+                <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="var(--accent-cyan)" />
+                    <stop offset="100%" stop-color="var(--accent-green)" />
+                </linearGradient>
+                <linearGradient id="areaGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="var(--accent-cyan)" stop-opacity="0.25" />
+                    <stop offset="100%" stop-color="var(--accent-cyan)" stop-opacity="0.0" />
+                </linearGradient>
+            </defs>
+
+            <!-- Guide Lines -->
+            ${guideLinesHtml}
+
+            <!-- Area Shading -->
+            ${fillD ? `<path d="${fillD}" fill="url(#areaGrad)" />` : ""}
+
+            <!-- Glowing Line -->
+            ${pathD ? `<path d="${pathD}" fill="none" stroke="url(#lineGrad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />` : ""}
+
+            <!-- Data Point Labels and Highlight Markers -->
+            ${points.map(pt => `
+                <circle cx="${pt.x}" cy="${pt.y}" r="5" fill="var(--accent-cyan)" stroke="#fff" stroke-width="1.5" />
+                <text x="${pt.x}" y="${pt.y - 12}" text-anchor="middle" fill="var(--accent-green)" style="font-size:0.75rem; font-weight:800;">${pt.val}</text>
+            `).join("")}
+
+            <!-- X Axis Text -->
+            ${xAxisLabelsHtml}
+        </svg>
+    `;
+
     const analyticsRow = document.createElement("div");
     analyticsRow.style.cssText = "background:var(--bg-secondary); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:30px; box-shadow:var(--shadow-sm);";
     analyticsRow.innerHTML = `
-        <h3 style="font-size:0.9rem; font-weight:800; color:var(--text-primary); margin-bottom:18px; display:flex; align-items:center; gap:8px; text-transform:uppercase; letter-spacing:0.5px;">
-            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-            Task Progress Graphs By Timeframe
-        </h3>
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:20px;">
-            <!-- Day -->
-            <div style="background:var(--surface); border:1px solid var(--border-light); border-radius:8px; padding:16px; text-align:center;">
-                <div style="font-size:0.75rem; font-weight:800; color:var(--text-muted); margin-bottom:10px;">TODAY</div>
-                <div style="font-size:1.4rem; font-weight:800; color:var(--accent-cyan); margin-bottom:12px;">${dayStats.completed}/${dayStats.total} <span style="font-size:0.8rem; font-weight:600; color:var(--text-secondary);">Done</span></div>
-                <div style="height:12px; background:var(--bg-secondary); border-radius:6px; overflow:hidden; border:1px solid var(--border);">
-                    <div style="height:100%; width:${dayStats.percent}%; background:linear-gradient(90deg, var(--accent-cyan), var(--accent-green)); transition:width 0.4s ease;"></div>
-                </div>
-                <div style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); margin-top:8px;">${dayStats.percent}% Completed</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+            <h3 style="font-size:0.9rem; font-weight:800; color:var(--text-primary); display:flex; align-items:center; gap:8px; text-transform:uppercase; letter-spacing:0.5px; margin:0;">
+                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M3 3v18h18"></path><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path></svg>
+                Task Completions Trend Graph
+            </h3>
+            <div style="display:flex; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:2px;" id="graphTimeframeTabs">
+                <button class="graph-tab-btn ${state.trackerGraphTab === 'Daily' ? 'active' : ''}" data-tab="Daily" style="padding:6px 12px; font-size:0.72rem; font-weight:700; border-radius:6px; border:none; cursor:pointer; background:${state.trackerGraphTab === 'Daily' ? 'var(--accent-cyan)' : 'transparent'}; color:${state.trackerGraphTab === 'Daily' ? '#0f172a' : 'var(--text-secondary)'}; transition:all 0.2s;">Daily</button>
+                <button class="graph-tab-btn ${state.trackerGraphTab === 'Weekly' ? 'active' : ''}" data-tab="Weekly" style="padding:6px 12px; font-size:0.72rem; font-weight:700; border-radius:6px; border:none; cursor:pointer; background:${state.trackerGraphTab === 'Weekly' ? 'var(--accent-cyan)' : 'transparent'}; color:${state.trackerGraphTab === 'Weekly' ? '#0f172a' : 'var(--text-secondary)'}; transition:all 0.2s;">Weekly</button>
+                <button class="graph-tab-btn ${state.trackerGraphTab === 'Monthly' ? 'active' : ''}" data-tab="Monthly" style="padding:6px 12px; font-size:0.72rem; font-weight:700; border-radius:6px; border:none; cursor:pointer; background:${state.trackerGraphTab === 'Monthly' ? 'var(--accent-cyan)' : 'transparent'}; color:${state.trackerGraphTab === 'Monthly' ? '#0f172a' : 'var(--text-secondary)'}; transition:all 0.2s;">Monthly</button>
+                <button class="graph-tab-btn ${state.trackerGraphTab === 'Yearly' ? 'active' : ''}" data-tab="Yearly" style="padding:6px 12px; font-size:0.72rem; font-weight:700; border-radius:6px; border:none; cursor:pointer; background:${state.trackerGraphTab === 'Yearly' ? 'var(--accent-cyan)' : 'transparent'}; color:${state.trackerGraphTab === 'Yearly' ? '#0f172a' : 'var(--text-secondary)'}; transition:all 0.2s;">Yearly</button>
             </div>
-
-            <!-- Week -->
-            <div style="background:var(--surface); border:1px solid var(--border-light); border-radius:8px; padding:16px; text-align:center;">
-                <div style="font-size:0.75rem; font-weight:800; color:var(--text-muted); margin-bottom:10px;">THIS WEEK</div>
-                <div style="font-size:1.4rem; font-weight:800; color:var(--accent-cyan); margin-bottom:12px;">${weekStats.completed}/${weekStats.total} <span style="font-size:0.8rem; font-weight:600; color:var(--text-secondary);">Done</span></div>
-                <div style="height:12px; background:var(--bg-secondary); border-radius:6px; overflow:hidden; border:1px solid var(--border);">
-                    <div style="height:100%; width:${weekStats.percent}%; background:linear-gradient(90deg, var(--accent-cyan), var(--accent-green)); transition:width 0.4s ease;"></div>
-                </div>
-                <div style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); margin-top:8px;">${weekStats.percent}% Completed</div>
-            </div>
-
-            <!-- Month -->
-            <div style="background:var(--surface); border:1px solid var(--border-light); border-radius:8px; padding:16px; text-align:center;">
-                <div style="font-size:0.75rem; font-weight:800; color:var(--text-muted); margin-bottom:10px;">THIS MONTH</div>
-                <div style="font-size:1.4rem; font-weight:800; color:var(--accent-cyan); margin-bottom:12px;">${monthStats.completed}/${monthStats.total} <span style="font-size:0.8rem; font-weight:600; color:var(--text-secondary);">Done</span></div>
-                <div style="height:12px; background:var(--bg-secondary); border-radius:6px; overflow:hidden; border:1px solid var(--border);">
-                    <div style="height:100%; width:${monthStats.percent}%; background:linear-gradient(90deg, var(--accent-cyan), var(--accent-green)); transition:width 0.4s ease;"></div>
-                </div>
-                <div style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); margin-top:8px;">${monthStats.percent}% Completed</div>
-            </div>
-
-            <!-- Year -->
-            <div style="background:var(--surface); border:1px solid var(--border-light); border-radius:8px; padding:16px; text-align:center;">
-                <div style="font-size:0.75rem; font-weight:800; color:var(--text-muted); margin-bottom:10px;">THIS YEAR</div>
-                <div style="font-size:1.4rem; font-weight:800; color:var(--accent-cyan); margin-bottom:12px;">${yearStats.completed}/${yearStats.total} <span style="font-size:0.8rem; font-weight:600; color:var(--text-secondary);">Done</span></div>
-                <div style="height:12px; background:var(--bg-secondary); border-radius:6px; overflow:hidden; border:1px solid var(--border);">
-                    <div style="height:100%; width:${yearStats.percent}%; background:linear-gradient(90deg, var(--accent-cyan), var(--accent-green)); transition:width 0.4s ease;"></div>
-                </div>
-                <div style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); margin-top:8px;">${yearStats.percent}% Completed</div>
-            </div>
+        </div>
+        <div style="position:relative; padding-top:10px;">
+            ${svgGraphicHtml}
         </div>
     `;
     checklistWrapper.appendChild(analyticsRow);
+
+    // Event listener for tab controls
+    analyticsRow.querySelectorAll(".graph-tab-btn").forEach(btn => {
+        btn.onclick = () => {
+            state.trackerGraphTab = btn.getAttribute("data-tab");
+            renderChecklist();
+        };
+    });
 
     // 2. RENDER ADD TASK INLINE FORM CARD
     const addCard = document.createElement("div");
