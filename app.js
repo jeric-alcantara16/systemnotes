@@ -646,76 +646,8 @@ function renderChecklist() {
 
     let graphLabels = [];
     let graphValues = [];
-
-    if (state.trackerGraphTab === "Daily") {
-        graphLabels = ["12am-6am", "6am-12pm", "12pm-6pm", "6pm-12am"];
-        graphValues = [0, 0, 0, 0];
-        
-        state.trackerTasks.forEach(t => {
-            if (t.status === "Completed") {
-                const compDateStr = t.completedAt ? getLocalDateStr(t.completedAt) : (t.dueDate || "");
-                if (compDateStr === todayStr) {
-                    let hour = 12; // default fallback (12 PM)
-                    if (t.completedAt) {
-                        hour = new Date(t.completedAt).getHours();
-                    }
-                    
-                    if (hour >= 0 && hour < 6) {
-                        graphValues[0]++;
-                    } else if (hour >= 6 && hour < 12) {
-                        graphValues[1]++;
-                    } else if (hour >= 12 && hour < 18) {
-                        graphValues[2]++;
-                    } else {
-                        graphValues[3]++;
-                    }
-                }
-            }
-        });
-    } else if (state.trackerGraphTab === "Weekly") {
-        for (let i = 6; i >= 0; i--) {
-            const d = new Date(now);
-            d.setDate(now.getDate() - i);
-            const dateStr = getLocalDateStr(d);
-            const label = d.toLocaleDateString('en-US', { weekday: 'short' });
-            graphLabels.push(label);
-            
-            const count = state.trackerTasks.filter(t => {
-                if (t.status !== "Completed") return false;
-                const compDateStr = t.completedAt ? getLocalDateStr(t.completedAt) : (t.dueDate || "");
-                return compDateStr === dateStr;
-            }).length;
-            graphValues.push(count);
-        }
-    } else if (state.trackerGraphTab === "Monthly") {
-        for (let i = 4; i >= 0; i--) {
-            const d = new Date(now);
-            d.setMonth(now.getMonth() - i);
-            const yearMonth = getLocalDateStr(d).substring(0, 7);
-            const label = d.toLocaleDateString('en-US', { month: 'short' });
-            graphLabels.push(label);
-            
-            const count = state.trackerTasks.filter(t => {
-                if (t.status !== "Completed") return false;
-                const compDateStr = t.completedAt ? getLocalDateStr(t.completedAt) : (t.dueDate || "");
-                return compDateStr && compDateStr.startsWith(yearMonth);
-            }).length;
-            graphValues.push(count);
-        }
-    } else if (state.trackerGraphTab === "Yearly") {
-        const currentYear = now.getFullYear();
-        for (let i = 4; i >= 0; i--) {
-            const yr = currentYear - i;
-            graphLabels.push(yr.toString());
-            
-            const count = state.trackerTasks.filter(t => {
-                if (t.status !== "Completed") return false;
-                const compDateStr = t.completedAt ? getLocalDateStr(t.completedAt) : (t.dueDate || "");
-                return compDateStr && compDateStr.startsWith(yr.toString());
-            }).length;
-            graphValues.push(count);
-        }
-    }
+    let points = [];
+    let maxVal = 4;
 
     // SVG plotting variables
     const svgW = 500;
@@ -724,15 +656,122 @@ function renderChecklist() {
     const paddingRight = 20;
     const availW = svgW - paddingX - paddingRight;
 
-    // Calculate Y scale
-    const maxVal = Math.max(...graphValues, 4); // Scale to at least 4 so the line has room to breathe
-    
-    // Draw points
-    let points = [];
-    for (let i = 0; i < graphLabels.length; i++) {
-        const x = paddingX + (i / (graphLabels.length - 1)) * availW;
-        const y = svgH - (graphValues[i] / maxVal) * (svgH - 40) - 20;
-        points.push({ x, y, val: graphValues[i], label: graphLabels[i] });
+    if (state.trackerGraphTab === "Daily") {
+        // Equal grid ticks for X-axis labels
+        graphLabels = ["12 AM", "4 AM", "8 AM", "12 PM", "4 PM", "8 PM", "12 AM"];
+        
+        const todayTasks = state.trackerTasks.filter(t => {
+            if (t.status !== "Completed") return false;
+            const compDateStr = t.completedAt ? getLocalDateStr(t.completedAt) : (t.dueDate || "");
+            return compDateStr === todayStr;
+        });
+
+        // Sort tasks chronologically by completion timestamp
+        todayTasks.sort((a, b) => {
+            const timeA = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+            const timeB = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+            return timeA - timeB;
+        });
+
+        // Baseline point at midnight
+        points.push({
+            x: paddingX,
+            val: 0,
+            label: "12:00 AM",
+            desc: "Start of Day",
+            isBaseline: true
+        });
+
+        todayTasks.forEach((t, index) => {
+            let hourFraction = 12; // default noon
+            let formattedTime = "12:00 PM";
+            if (t.completedAt) {
+                const dateObj = new Date(t.completedAt);
+                hourFraction = dateObj.getHours() + (dateObj.getMinutes() / 60);
+                formattedTime = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            }
+            
+            const x = paddingX + (hourFraction / 24) * availW;
+            points.push({
+                x,
+                val: index + 1,
+                label: formattedTime,
+                desc: t.title,
+                isBaseline: false
+            });
+        });
+
+        // End-of-day carrying point
+        const totalToday = todayTasks.length;
+        points.push({
+            x: paddingX + availW,
+            val: totalToday,
+            label: "11:59 PM",
+            desc: "End of Day",
+            isBaseline: true
+        });
+
+        graphValues = points.map(p => p.val);
+        maxVal = Math.max(...graphValues, 4);
+
+        // Adjust Y coordinates
+        points.forEach(pt => {
+            pt.y = svgH - (pt.val / maxVal) * (svgH - 40) - 20;
+        });
+
+    } else {
+        // Weekly, Monthly, Yearly
+        if (state.trackerGraphTab === "Weekly") {
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date(now);
+                d.setDate(now.getDate() - i);
+                const dateStr = getLocalDateStr(d);
+                const label = d.toLocaleDateString('en-US', { weekday: 'short' });
+                graphLabels.push(label);
+                
+                const count = state.trackerTasks.filter(t => {
+                    if (t.status !== "Completed") return false;
+                    const compDateStr = t.completedAt ? getLocalDateStr(t.completedAt) : (t.dueDate || "");
+                    return compDateStr === dateStr;
+                }).length;
+                graphValues.push(count);
+            }
+        } else if (state.trackerGraphTab === "Monthly") {
+            for (let i = 4; i >= 0; i--) {
+                const d = new Date(now);
+                d.setMonth(now.getMonth() - i);
+                const yearMonth = getLocalDateStr(d).substring(0, 7);
+                const label = d.toLocaleDateString('en-US', { month: 'short' });
+                graphLabels.push(label);
+                
+                const count = state.trackerTasks.filter(t => {
+                    if (t.status !== "Completed") return false;
+                    const compDateStr = t.completedAt ? getLocalDateStr(t.completedAt) : (t.dueDate || "");
+                    return compDateStr && compDateStr.startsWith(yearMonth);
+                }).length;
+                graphValues.push(count);
+            }
+        } else if (state.trackerGraphTab === "Yearly") {
+            const currentYear = now.getFullYear();
+            for (let i = 4; i >= 0; i--) {
+                const yr = currentYear - i;
+                graphLabels.push(yr.toString());
+                
+                const count = state.trackerTasks.filter(t => {
+                    if (t.status !== "Completed") return false;
+                    const compDateStr = t.completedAt ? getLocalDateStr(t.completedAt) : (t.dueDate || "");
+                    return compDateStr && compDateStr.startsWith(yr.toString());
+                }).length;
+                graphValues.push(count);
+            }
+        }
+
+        maxVal = Math.max(...graphValues, 4);
+        for (let i = 0; i < graphLabels.length; i++) {
+            const x = paddingX + (i / (graphLabels.length - 1)) * availW;
+            const y = svgH - (graphValues[i] / maxVal) * (svgH - 40) - 20;
+            points.push({ x, y, val: graphValues[i], label: graphLabels[i], desc: "Tasks Completed", isBaseline: false });
+        }
     }
 
     // Build SVG Path
@@ -760,13 +799,25 @@ function renderChecklist() {
         `;
     }
 
-    // Draw X Axis labels
+    // Draw X Axis labels (evenly spaced for Daily timeline)
     let xAxisLabelsHtml = "";
-    points.forEach(pt => {
-        xAxisLabelsHtml += `
-            <text x="${pt.x}" y="${svgH + 18}" text-anchor="middle" fill="var(--text-secondary)" style="font-size:0.75rem; font-weight:800;">${pt.label}</text>
-        `;
-    });
+    if (state.trackerGraphTab === "Daily") {
+        graphLabels.forEach((label, i) => {
+            const x = paddingX + (i / (graphLabels.length - 1)) * availW;
+            xAxisLabelsHtml += `
+                <text x="${x}" y="${svgH + 18}" text-anchor="middle" fill="var(--text-secondary)" style="font-size:0.75rem; font-weight:800;">${label}</text>
+            `;
+        });
+    } else {
+        points.forEach(pt => {
+            xAxisLabelsHtml += `
+                <text x="${pt.x}" y="${svgH + 18}" text-anchor="middle" fill="var(--text-secondary)" style="font-size:0.75rem; font-weight:800;">${pt.label}</text>
+            `;
+        });
+    }
+
+    // Filter baseline markers (like midnight padding) from displaying as physical points
+    const renderedPoints = points.filter(pt => !pt.isBaseline);
 
     // Draw data line path, glowing markers, and overlays
     let svgGraphicHtml = `
@@ -792,14 +843,9 @@ function renderChecklist() {
             ${pathD ? `<path d="${pathD}" fill="none" stroke="url(#lineGrad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />` : ""}
 
             <!-- Data Point Labels and Highlight Markers -->
-            ${points.map(pt => `
-                <circle cx="${pt.x}" cy="${pt.y}" r="5" fill="var(--accent-cyan)" stroke="#fff" stroke-width="1.5">
-                    <title>${pt.label}: ${pt.val} tasks completed</title>
-                </circle>
-                <text x="${pt.x}" y="${pt.y - 12}" text-anchor="middle" fill="var(--accent-green)" style="font-size:0.75rem; font-weight:800;">
-                    <title>${pt.label}: ${pt.val} tasks completed</title>
-                    ${pt.val}
-                </text>
+            ${renderedPoints.map(pt => `
+                <circle cx="${pt.x}" cy="${pt.y}" r="5" fill="var(--accent-cyan)" stroke="#fff" stroke-width="1.5" />
+                <text x="${pt.x}" y="${pt.y - 12}" text-anchor="middle" fill="var(--accent-green)" style="font-size:0.75rem; font-weight:800; pointer-events:none;">${pt.val}</text>
             `).join("")}
 
             <!-- X Axis Text -->
@@ -850,16 +896,22 @@ function renderChecklist() {
         circle.style.cursor = "pointer";
         circle.style.transition = "r 0.2s ease, fill 0.2s ease";
         
-        const pt = points[idx];
+        const pt = renderedPoints[idx];
         if (!pt) return;
 
         circle.onmouseenter = (e) => {
             circle.setAttribute("r", "8");
             circle.setAttribute("fill", "var(--accent-green)");
             
+            const taskDetail = pt.desc && pt.desc !== "Tasks Completed" && pt.desc !== "Start of Day" && pt.desc !== "End of Day" ? `
+                <div style="height:1px; background:var(--border-light); margin-bottom:6px;"></div>
+                <div style="color:var(--accent-cyan); font-size:0.75rem; font-style:italic; margin-bottom:4px; max-width:180px; white-space:normal; line-height:1.2;">Task: ${pt.desc}</div>
+            ` : "";
+
             tooltipEl.innerHTML = `
                 <div style="color:var(--text-muted); font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Timeframe</div>
                 <div style="color:var(--text-primary); font-size:0.85rem; margin-bottom:6px;">${pt.label}</div>
+                ${taskDetail}
                 <div style="height:1px; background:var(--border-light); margin-bottom:6px;"></div>
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
                     <span style="color:var(--text-secondary); font-size:0.75rem;">Completions:</span>
