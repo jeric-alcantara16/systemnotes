@@ -16,6 +16,7 @@ let state = {
     currentMode: "system-design", // "system-design" or "languages"
     activeChapterId: null, // ID of the currently active chapter (null = welcome/glossary/checklist)
     activeTab: "learn", // "learn", "visualizer", "quiz"
+    activeChapterPageIndex: 0, // Current page index inside the active chapter
     completedItems: safeJSONParse("sysnotes_completed"),
     checklistState: safeJSONParse("sysnotes_checklist"),
     systems: safeJSONParse("sysnotes_systems", []),
@@ -190,11 +191,113 @@ function showView(viewName) {
     }
 }
 
-function showChapter(chapterId) {
+function updateLessonNavigation() {
+    const chapterId = state.activeChapterId;
+    if (!chapterId) return;
+
+    const lesson = currentLessonsList.find(l => l.id === chapterId);
+    if (!lesson) return;
+
+    const pages = lesson.content.split('<!-- pagebreak -->');
+    const currentIndex = currentLessonsList.findIndex(l => l.id === chapterId);
+    const pageIndex = state.activeChapterPageIndex;
+    const pageIndicator = document.getElementById("lessonPageIndicator");
+
+    if (state.activeTab === "learn" && pages.length > 1) {
+        // Show page indicator
+        pageIndicator.style.display = "flex";
+        pageIndicator.textContent = `Page ${pageIndex + 1} of ${pages.length}`;
+
+        // Previous button
+        if (pageIndex > 0) {
+            prevChapterBtn.classList.remove("disabled");
+            prevChapterBtn.querySelector("span").textContent = "Previous Page";
+            prevChapterBtn.onclick = () => {
+                state.activeChapterPageIndex--;
+                showChapter(chapterId, state.activeChapterPageIndex);
+            };
+        } else {
+            // Act as Previous Chapter
+            if (currentIndex > 0) {
+                prevChapterBtn.classList.remove("disabled");
+                prevChapterBtn.querySelector("span").textContent = "Previous Chapter";
+                prevChapterBtn.onclick = () => {
+                    const prevLesson = currentLessonsList[currentIndex - 1];
+                    const prevPages = prevLesson.content.split('<!-- pagebreak -->');
+                    showChapter(prevLesson.id, prevPages.length - 1);
+                };
+            } else {
+                prevChapterBtn.classList.add("disabled");
+                prevChapterBtn.querySelector("span").textContent = "Previous Chapter";
+                prevChapterBtn.onclick = null;
+            }
+        }
+
+        // Next button
+        if (pageIndex < pages.length - 1) {
+            nextChapterBtn.classList.remove("disabled");
+            nextChapterBtn.querySelector("span").textContent = "Next Page";
+            nextChapterBtn.onclick = () => {
+                state.activeChapterPageIndex++;
+                showChapter(chapterId, state.activeChapterPageIndex);
+            };
+        } else {
+            // Act as Next Chapter
+            if (currentIndex < currentLessonsList.length - 1) {
+                nextChapterBtn.classList.remove("disabled");
+                nextChapterBtn.querySelector("span").textContent = "Next Chapter";
+                nextChapterBtn.onclick = () => {
+                    showChapter(currentLessonsList[currentIndex + 1].id, 0);
+                };
+            } else {
+                nextChapterBtn.classList.add("disabled");
+                nextChapterBtn.querySelector("span").textContent = "Next Chapter";
+                nextChapterBtn.onclick = null;
+            }
+        }
+    } else {
+        // Hide page indicator
+        pageIndicator.style.display = "none";
+
+        // Previous Chapter button
+        if (currentIndex > 0) {
+            prevChapterBtn.classList.remove("disabled");
+            prevChapterBtn.querySelector("span").textContent = "Previous Chapter";
+            prevChapterBtn.onclick = () => {
+                showChapter(currentLessonsList[currentIndex - 1].id, 0);
+            };
+        } else {
+            prevChapterBtn.classList.add("disabled");
+            prevChapterBtn.querySelector("span").textContent = "Previous Chapter";
+            prevChapterBtn.onclick = null;
+        }
+
+        // Next Chapter button
+        if (currentIndex < currentLessonsList.length - 1) {
+            nextChapterBtn.classList.remove("disabled");
+            nextChapterBtn.querySelector("span").textContent = "Next Chapter";
+            nextChapterBtn.onclick = () => {
+                showChapter(currentLessonsList[currentIndex + 1].id, 0);
+            };
+        } else {
+            nextChapterBtn.classList.add("disabled");
+            nextChapterBtn.querySelector("span").textContent = "Next Chapter";
+            nextChapterBtn.onclick = null;
+        }
+    }
+}
+
+function showChapter(chapterId, pageIndex = null) {
     state.activeChapterId = chapterId;
     updateActiveModeData();
     const lesson = currentLessonsList.find(l => l.id === chapterId);
     if (!lesson) return;
+
+    if (pageIndex === null) {
+        state.activeChapterPageIndex = 0;
+    } else {
+        state.activeChapterPageIndex = pageIndex;
+    }
 
     showView("lesson");
 
@@ -212,7 +315,8 @@ function showChapter(chapterId) {
     breadcrumbs.innerHTML = `<span>${state.currentMode === "system-design" ? "System Design" : "Languages"}</span> &nbsp;&raquo;&nbsp; <span>${lesson.title}</span>`;
 
     // Render contents
-    lessonBody.innerHTML = lesson.content;
+    const pages = lesson.content.split('<!-- pagebreak -->');
+    lessonBody.innerHTML = pages[state.activeChapterPageIndex] || lesson.content;
     
     // Configure Visualizer Tab visibility
     const tabVisualizerBtn = document.getElementById("tabVisualizerBtn");
@@ -231,23 +335,8 @@ function showChapter(chapterId) {
     // Initialize/Render Quiz
     renderQuiz(lesson);
 
-    // Setup navigation buttons (Prev / Next)
-    const currentIndex = currentLessonsList.findIndex(l => l.id === chapterId);
-    if (currentIndex > 0) {
-        prevChapterBtn.classList.remove("disabled");
-        prevChapterBtn.onclick = () => showChapter(currentLessonsList[currentIndex - 1].id);
-    } else {
-        prevChapterBtn.classList.add("disabled");
-        prevChapterBtn.onclick = null;
-    }
-
-    if (currentIndex < currentLessonsList.length - 1) {
-        nextChapterBtn.classList.remove("disabled");
-        nextChapterBtn.onclick = () => showChapter(currentLessonsList[currentIndex + 1].id);
-    } else {
-        nextChapterBtn.classList.add("disabled");
-        nextChapterBtn.onclick = null;
-    }
+    // Update Navigation UI
+    updateLessonNavigation();
 
     // Scroll to top of article
     document.querySelector(".app-main").scrollTop = 0;
@@ -282,6 +371,9 @@ function switchTab(tabId) {
             initVisualizer(lesson.visualizer);
         }
     }
+
+    // Update Navigation UI
+    updateLessonNavigation();
 }
 
 tabButtons.forEach(btn => {
@@ -1215,6 +1307,8 @@ function initVisualizer(config) {
         renderJsEventLoopVisualizer();
     } else if (id === "python") {
         renderPythonGilVisualizer();
+    } else if (id === "monitoring-observability") {
+        renderObservabilityVisualizer();
     } else {
         visualizerCanvas.innerHTML = `<div class="no-visualizer">Default model viewer. No animation logic defined.</div>`;
     }
@@ -2475,6 +2569,212 @@ function renderPythonGilVisualizer() {
             btn.disabled = false;
         }, 4400);
     };
+}
+
+// 18. Monitoring & Observability Visualizer
+function renderObservabilityVisualizer() {
+    visualizerCanvas.innerHTML = `
+        <div class="interactive-grid">
+            <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+                <button class="flow-button" id="btnSpikeTraffic" style="background: var(--accent-orange); color: #0f172a;">Simulate Traffic Spike</button>
+                <button class="flow-button" id="btnScaleUp" style="background: var(--accent-cyan); color: #0f172a;" disabled>Scale Up Replicas (Mitigate)</button>
+                <button class="flow-button" id="btnResetObs" style="background: var(--surface); color: var(--text-primary);">Reset Simulator</button>
+            </div>
+
+            <!-- Dashboard Layout -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; width: 100%; margin-bottom: 20px;">
+                <div class="metric-card" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border); padding: 12px; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase;">System Status</div>
+                    <div id="obsStatus" style="font-size: 1.25rem; font-weight: 700; color: #10b981; margin-top: 4px;">HEALTHY</div>
+                </div>
+                <div class="metric-card" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border); padding: 12px; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase;">Throughput</div>
+                    <div id="obsThroughput" style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-top: 4px;">12 RPS</div>
+                </div>
+                <div class="metric-card" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border); padding: 12px; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase;">Latency (p99)</div>
+                    <div id="obsLatency" style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-top: 4px;">45 ms</div>
+                </div>
+                <div class="metric-card" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border); padding: 12px; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase;">Error Rate</div>
+                    <div id="obsErrorRate" style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-top: 4px;">0.1%</div>
+                </div>
+            </div>
+
+            <!-- System Architecture Visualizer -->
+            <div style="display: flex; justify-content: space-around; align-items: center; width: 100%; max-width: 550px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; padding: 20px; position: relative; min-height: 180px; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+                <div class="node-box active-green" id="obsClient" style="width: 100px; padding: 10px; font-size: 0.75rem;">
+                    <div>User Clients</div>
+                </div>
+                
+                <div id="obsLink1" style="height: 2px; width: 40px; background: var(--border); transition: all 0.3s;"></div>
+
+                <div class="node-box active-green" id="obsGateway" style="width: 100px; padding: 10px; font-size: 0.75rem;">
+                    <div>API Gateway</div>
+                </div>
+
+                <div id="obsLink2" style="height: 2px; width: 40px; background: var(--border); transition: all 0.3s;"></div>
+
+                <div id="obsServiceContainer" style="display: flex; flex-direction: column; gap: 8px;">
+                    <div class="node-box active-green" id="obsService1" style="width: 120px; padding: 10px; font-size: 0.75rem; transition: all 0.3s;">
+                        <div>Order Srv (v1)</div>
+                    </div>
+                    <div class="node-box active-green" id="obsService2" style="width: 120px; padding: 10px; font-size: 0.75rem; display: none; transition: all 0.3s;">
+                        <div>Order Srv (v2)</div>
+                    </div>
+                    <div class="node-box active-green" id="obsService3" style="width: 120px; padding: 10px; font-size: 0.75rem; display: none; transition: all 0.3s;">
+                        <div>Order Srv (v3)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Alerts -->
+            <div style="width: 100%; margin-bottom: 20px;">
+                <h4 style="margin-bottom: 8px; font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase;">Active Alerts</h4>
+                <div id="obsAlertBox" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); color: #10b981; padding: 12px; border-radius: 6px; font-size: 0.85rem; font-weight: 600;">
+                    🟢 All system metrics are within SLO thresholds.
+                </div>
+            </div>
+
+            <!-- Logs and Tracing Console -->
+            <div style="width: 100%;">
+                <h4 style="margin-bottom: 8px; font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase;">Telemetry Logs & Traces</h4>
+                <div id="obsConsole" style="background: #0f172a; border: 1px solid var(--border); border-radius: 6px; padding: 15px; font-family: 'Fira Code', monospace; font-size: 0.75rem; color: #38bdf8; height: 120px; overflow-y: auto; text-align: left; line-height: 1.5;">
+                    <div>[INFO] Observability simulator initialized. Waiting for telemetry data...</div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const btnSpike = document.getElementById("btnSpikeTraffic");
+    const btnScale = document.getElementById("btnScaleUp");
+    const btnReset = document.getElementById("btnResetObs");
+
+    const obsStatus = document.getElementById("obsStatus");
+    const obsThroughput = document.getElementById("obsThroughput");
+    const obsLatency = document.getElementById("obsLatency");
+    const obsErrorRate = document.getElementById("obsErrorRate");
+
+    const obsClient = document.getElementById("obsClient");
+    const obsGateway = document.getElementById("obsGateway");
+    const obsService1 = document.getElementById("obsService1");
+    const obsService2 = document.getElementById("obsService2");
+    const obsService3 = document.getElementById("obsService3");
+
+    const obsLink1 = document.getElementById("obsLink1");
+    const obsLink2 = document.getElementById("obsLink2");
+
+    const obsAlertBox = document.getElementById("obsAlertBox");
+    const obsConsole = document.getElementById("obsConsole");
+
+    function logToConsole(message, type = "info") {
+        const div = document.createElement("div");
+        let color = "#38bdf8"; // cyan/info
+        if (type === "warning") color = "#f97316"; // orange
+        if (type === "error") color = "#ef4444"; // red
+        if (type === "success") color = "#10b981"; // green
+        div.style.color = color;
+        div.textContent = message;
+        obsConsole.appendChild(div);
+        obsConsole.scrollTop = obsConsole.scrollHeight;
+    }
+
+    btnSpike.addEventListener("click", () => {
+        // Change state to Spiked
+        obsStatus.textContent = "CRITICAL";
+        obsStatus.style.color = "#ef4444";
+        obsThroughput.textContent = "150 RPS";
+        obsLatency.textContent = "320 ms";
+        obsErrorRate.textContent = "8.5%";
+
+        // Architecture colors
+        obsClient.className = "node-box active-green";
+        obsGateway.className = "node-box active-orange";
+        obsService1.className = "node-box active-red";
+
+        obsLink1.style.background = "var(--accent-orange)";
+        obsLink2.style.background = "var(--accent-red)";
+
+        // Alert
+        obsAlertBox.style.background = "rgba(239, 68, 68, 0.08)";
+        obsAlertBox.style.borderColor = "rgba(239, 68, 68, 0.2)";
+        obsAlertBox.style.color = "#ef4444";
+        obsAlertBox.innerHTML = `🔴 CRITICAL: Latency SLO Breached (p99 320ms > 200ms target)<br>🔴 CRITICAL: Error Rate SLO Breached (8.5% > 1% target)`;
+
+        // Logs
+        obsConsole.innerHTML = "";
+        logToConsole(`[\${new Date().toLocaleTimeString()}] [WARNING] GET /orders - HTTP 504 Gateway Timeout (320ms)`, "warning");
+        logToConsole(`[\${new Date().toLocaleTimeString()}] [ERROR] Order Srv pool exhausted. Active thread count = 100/100`, "error");
+        logToConsole(`[\${new Date().toLocaleTimeString()}] [TRACE] TraceID 0x9f2a: Gateway (320ms) -> OrderSrv (320ms) -> DB Query (Timeout)`, "error");
+
+        btnSpike.disabled = true;
+        btnScale.disabled = false;
+    });
+
+    btnScale.addEventListener("click", () => {
+        // Change state to Scaled
+        obsStatus.textContent = "HEALTHY";
+        obsStatus.style.color = "#10b981";
+        obsThroughput.textContent = "150 RPS";
+        obsLatency.textContent = "75 ms";
+        obsErrorRate.textContent = "0.2%";
+
+        // Show replica instances
+        obsService2.style.display = "block";
+        obsService3.style.display = "block";
+
+        // Architecture colors
+        obsClient.className = "node-box active-green";
+        obsGateway.className = "node-box active-green";
+        obsService1.className = "node-box active-green";
+        obsService2.className = "node-box active-green";
+        obsService3.className = "node-box active-green";
+
+        obsLink1.style.background = "var(--accent-green)";
+        obsLink2.style.background = "var(--accent-green)";
+
+        // Alert
+        obsAlertBox.style.background = "rgba(16, 185, 129, 0.08)";
+        obsAlertBox.style.borderColor = "rgba(16, 185, 129, 0.2)";
+        obsAlertBox.style.color = "#10b981";
+        obsAlertBox.innerHTML = `🟢 RESOLVED: Replicas scaled. All system metrics returned to normal thresholds.`;
+
+        // Logs
+        logToConsole(`[\${new Date().toLocaleTimeString()}] [INFO] Scaling event triggered. Spun up 2 additional instances of Order Service.`, "success");
+        logToConsole(`[\${new Date().toLocaleTimeString()}] [INFO] GET /orders - HTTP 200 OK (72ms) - Server ID: order-srv-pod-2`, "success");
+        logToConsole(`[\${new Date().toLocaleTimeString()}] [INFO] GET /orders - HTTP 200 OK (68ms) - Server ID: order-srv-pod-3`, "success");
+
+        btnScale.disabled = true;
+    });
+
+    btnReset.addEventListener("click", () => {
+        // Reset state
+        obsStatus.textContent = "HEALTHY";
+        obsStatus.style.color = "#10b981";
+        obsThroughput.textContent = "12 RPS";
+        obsLatency.textContent = "45 ms";
+        obsErrorRate.textContent = "0.1%";
+
+        obsService2.style.display = "none";
+        obsService3.style.display = "none";
+
+        obsClient.className = "node-box active-green";
+        obsGateway.className = "node-box active-green";
+        obsService1.className = "node-box active-green";
+
+        obsLink1.style.background = "var(--border)";
+        obsLink2.style.background = "var(--border)";
+
+        obsAlertBox.style.background = "rgba(16, 185, 129, 0.08)";
+        obsAlertBox.style.borderColor = "rgba(16, 185, 129, 0.2)";
+        obsAlertBox.style.color = "#10b981";
+        obsAlertBox.innerHTML = `🟢 All system metrics are within SLO thresholds.`;
+
+        obsConsole.innerHTML = `<div>[INFO] Observability simulator reset. Waiting for telemetry data...</div>`;
+
+        btnSpike.disabled = false;
+        btnScale.disabled = true;
+    });
 }
 
 // ==========================================================================

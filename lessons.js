@@ -22,33 +22,34 @@ const SYSTEM_DESIGN_LESSONS = [
             <h2>The Step-by-Step Design Framework</h2>
             <p>When faced with a system design problem (e.g., in an interview or project planning), follow this structured 4-step framework:</p>
             
-            <ol>
-                <li><strong>1. Understand the Requirements (Functional & Non-Functional):</strong>
-                    <ul>
-                        <li><em>Functional Requirements:</em> What features must the system support? (e.g., "Users should be able to post photos", "Users can follow other users").</li>
-                        <li><em>Non-Functional Requirements:</em> What are the system's operational parameters? (e.g., High availability, low latency, consistency vs. availability, scale expectations).</li>
-                    </ul>
-                </li>
-                <li><strong>2. Estimate Scale & Resource Constraints:</strong>
-                    <ul>
-                        <li>Estimate DAU (Daily Active Users), Read/Write ratios (read-heavy vs write-heavy).</li>
-                        <li>Calculate network bandwidth, storage capacity (e.g., 500 million photos/day * 200KB = 100TB/day), and memory cache requirements.</li>
-                    </ul>
-                </li>
-                <li><strong>3. Define API & Data Models:</strong>
-                    <ul>
-                        <li>Create clean API endpoints representing the contract between client and server (e.g., REST endpoints like <code>POST /v1/tweets</code>).</li>
-                        <li>Select DB schemas, determining whether Relational (SQL) or Non-Relational (NoSQL) is appropriate.</li>
-                    </ul>
-                </li>
-                <li><strong>4. High-Level Design (HLD) & Deep Dive:</strong>
-                    <ul>
-                        <li>Sketch the overall components (Clients, Load Balancers, Web Servers, Database, Cache, Queue).</li>
-                        <li>Deep dive into bottlenecks (e.g., sharding databases, caching hot assets, handling scale spikes with queues).</li>
-                    </ul>
-                </li>
-            </ol>
+            <h3>Step 1: Understand the Requirements (Functional & Non-Functional)</h3>
+            <ul>
+                <li><em>Functional Requirements:</em> What features must the system support? (e.g., "Users should be able to post photos", "Users can follow other users").</li>
+                <li><em>Non-Functional Requirements:</em> What are the system's operational parameters? (e.g., High availability, low latency, consistency vs. availability, scale expectations).</li>
+            </ul>
 
+            <!-- pagebreak -->
+            <h3>Step 2: Estimate Scale & Resource Constraints</h3>
+            <ul>
+                <li>Estimate DAU (Daily Active Users), Read/Write ratios (read-heavy vs write-heavy).</li>
+                <li>Calculate network bandwidth, storage capacity (e.g., 500 million photos/day * 200KB = 100TB/day), and memory cache requirements.</li>
+            </ul>
+
+            <!-- pagebreak -->
+            <h3>Step 3: Define API & Data Models</h3>
+            <ul>
+                <li>Create clean API endpoints representing the contract between client and server (e.g., REST endpoints like <code>POST /v1/tweets</code>).</li>
+                <li>Select DB schemas, determining whether Relational (SQL) or Non-Relational (NoSQL) is appropriate.</li>
+            </ul>
+
+            <!-- pagebreak -->
+            <h3>Step 4: High-Level Design (HLD) & Deep Dive</h3>
+            <ul>
+                <li>Sketch the overall components (Clients, Load Balancers, Web Servers, Database, Cache, Queue).</li>
+                <li>Deep dive into bottlenecks (e.g., sharding databases, caching hot assets, handling scale spikes with queues).</li>
+            </ul>
+
+            <!-- pagebreak -->
             <h2>Latency Numbers Every Programmer Should Know</h2>
             <table>
                 <thead>
@@ -140,6 +141,7 @@ const SYSTEM_DESIGN_LESSONS = [
                 <strong>Cons:</strong> Difficult to scale modules independently, long build/deploy times, code coupling, single point of failure.
             </div>
 
+            <!-- pagebreak -->
             <h2>2. Microservices Architecture</h2>
             <p>Microservices divide a large application into a collection of small, autonomous, and loosely coupled services. Each service represents a specific business capability, runs its own process, and manages its own database.</p>
             
@@ -157,6 +159,7 @@ const SYSTEM_DESIGN_LESSONS = [
                 Microservices solve organizational scaling issues but introduce complex distributed system problems: network partition failures, data synchronization overhead, and deployment complexity (needs strong CI/CD and observability).
             </div>
 
+            <!-- pagebreak -->
             <h2>3. Serverless Architecture</h2>
             <p>Serverless (FaaS - Function as a Service) allows developers to write and run code without provisioning or managing underlying servers. Code runs in stateless ephemeral containers triggered by events (e.g., AWS Lambda, GCP Cloud Functions).</p>
             <ul>
@@ -164,6 +167,7 @@ const SYSTEM_DESIGN_LESSONS = [
                 <li><strong>Cold Starts:</strong> The latency spike that occurs when a serverless function is invoked after being idle, as the platform provisions new infrastructure.</li>
             </ul>
 
+            <!-- pagebreak -->
             <h2>4. Event-Driven Architecture (EDA)</h2>
             <p>In EDA, services communicate by publishing and consuming state changes called <strong>events</strong>. Producers emit events to an event broker (e.g., Kafka, RabbitMQ) without knowing who the consumers are. Consumers subscribe to topics asynchronously.</p>
         `,
@@ -227,6 +231,7 @@ const SYSTEM_DESIGN_LESSONS = [
 +---------------------+
             </div>
 
+            <!-- pagebreak -->
             <h2>2. Sequence Diagram (Behavioral/Interaction)</h2>
             <p>Sequence diagrams model the flow of logic and messages exchanged between system components over time. Time flows vertically down the diagram.</p>
             <div class="uml-text-box">
@@ -240,6 +245,7 @@ Client       Gateway       AuthService      Database
   |<-- success -|               |              |
             </div>
 
+            <!-- pagebreak -->
             <h2>3. Activity Diagram (Workflow)</h2>
             <p>Activity diagrams represent the step-by-step workflows of business and operational processes. They are dynamic flowcharts showing control flow.</p>
             <div class="uml-text-box">
@@ -250,6 +256,7 @@ Client       Gateway       AuthService      Database
            -> [No]  -> [Show Error] -> (*)
             </div>
 
+            <!-- pagebreak -->
             <h2>4. Component Diagram (Implementation)</h2>
             <p>Component diagrams depict how software components are wired together to form larger subsystems. They highlight structural dependencies.</p>
             <div class="uml-text-box">
@@ -296,6 +303,7 @@ Client       Gateway       AuthService      Database
             <h3>Level 1: System Context Diagram</h3>
             <p>Shows the software system you are building, who uses it, and how it fits into the surrounding ecosystem. Detail is minimized; focus is on external actors and dependencies.</p>
 
+            <!-- pagebreak -->
             <h3>Level 2: Container Diagram</h3>
             <p>Zooms into the system. A 'Container' represents a runnable application or data store (e.g., a React SPA, a Spring Boot backend API, a PostgreSQL database, or a Redis cache). It shows how these components divide responsibilities and communicate.</p>
             
@@ -314,12 +322,14 @@ Client       Gateway       AuthService      Database
 +--------------------------------------------------------------+
             </div>
 
+            <!-- pagebreak -->
             <h3>Level 3: Component Diagram</h3>
             <p>Zooms inside a single container (e.g., the Backend API) to show its internal logical components (e.g., SecurityController, OrderManager, EmailNotifier) and how they depend on each other.</p>
 
             <h3>Level 4: Code Diagram</h3>
             <p>Zooms into an individual component to show class hierarchies, interfaces, and function relationships (like a Class Diagram). Often auto-generated or omitted.</p>
 
+            <!-- pagebreak -->
             <h2>Deployment Diagrams</h2>
             <p>Deployment diagrams show the physical configuration of run-time processing nodes and the software components that run on them. They specify cloud servers, regions, network bridges, subnets, and hardware nodes.</p>
         `,
@@ -367,6 +377,7 @@ Client       Gateway       AuthService      Database
                 </ul>
             </div>
 
+            <!-- pagebreak -->
             <h2>2. The PACELC Theorem</h2>
             <p>CAP only describes behavior during a rare **network partition**. What happens during normal operations?</p>
             <p><strong>PACELC:</strong> If there is a <strong>P</strong>artition, trade-off <strong>A</strong>vailability or <strong>C</strong>onsistency; <strong>E</strong>lse, trade-off <strong>L</strong>atency or <strong>C</strong>onsistency.</p>
@@ -419,6 +430,7 @@ Client       Gateway       AuthService      Database
                 <li><strong>Layer 7 (Application Layer):</strong> Routes traffic based on application data (HTTP headers, cookies, URL paths like <code>/api/v1/checkout</code> vs <code>/static/images</code>). Can decrypt SSL/TLS traffic, flexible, smart.</li>
             </ul>
 
+            <!-- pagebreak -->
             <h2>Routing Algorithms</h2>
             <ul>
                 <li><strong>Round Robin:</strong> Cycles requests sequentially. Best when backend nodes have equal capacity.</li>
@@ -427,6 +439,7 @@ Client       Gateway       AuthService      Database
                 <li><strong>Weighted Round Robin:</strong> Assigns weights to servers based on hardware specs (e.g. Server A has 2x resources of Server B).</li>
             </ul>
 
+            <!-- pagebreak -->
             <h2>Consistent Hashing</h2>
             <p>Traditional hashing (<code>server = hash(key) % N</code>) breaks down when scaling servers up or down because <code>N</code> changes, causing almost all keys to remap. Consistent Hashing maps keys and servers onto a circular ring, minimizing key migration when nodes are added or removed.</p>
         `,
@@ -496,6 +509,7 @@ Client       Gateway       AuthService      Database
                 </tbody>
             </table>
 
+            <!-- pagebreak -->
             <h2>2. Cache Eviction Policies</h2>
             <p>Cache memory is limited. When full, data must be evicted using policies:</p>
             <ul>
@@ -504,6 +518,7 @@ Client       Gateway       AuthService      Database
                 <li><strong>FIFO (First In First Out):</strong> Evicts the oldest items in the cache.</li>
             </ul>
 
+            <!-- pagebreak -->
             <h2>3. Redis vs. CDN</h2>
             <ul>
                 <li><strong>Redis (Remote Dictionary Server):</strong> In-memory key-value database. Used for caching database queries, session states, and API responses close to the application.</li>
@@ -554,6 +569,7 @@ Client       Gateway       AuthService      Database
                 <li><strong>Publish/Subscribe (Topics):</strong> One message is broadcast to all consumers subscribed to the topic.</li>
             </ul>
 
+            <!-- pagebreak -->
             <h2>2. Kafka vs. RabbitMQ</h2>
             <table>
                 <thead>
@@ -587,6 +603,7 @@ Client       Gateway       AuthService      Database
                 </tbody>
             </table>
 
+            <!-- pagebreak -->
             <div class="alert alert-note">
                 <div class="alert-title">Decoupling Example</div>
                 When a user places an order: the Order Service writes to the DB and publishes an <code>order-placed</code> event to a message queue. The Notification Service and Inventory Service consume this message independently. If the Notification Service crashes, the message remains safely in the queue until it boots back up.
@@ -626,6 +643,7 @@ Client       Gateway       AuthService      Database
                 <li><strong>Under-fetching:</strong> Client has to make multiple API calls to fetch associated data (e.g. get posts, then get comments for each post).</li>
             </ul>
 
+            <!-- pagebreak -->
             <h2>2. GraphQL</h2>
             <p>GraphQL is a query language for APIs. It uses a single endpoint (typically <code>POST /graphql</code>) and allows the client to define the exact shape of the response payload, resolving over-fetching and under-fetching.</p>
             <pre><code># GraphQL Query Example
@@ -636,6 +654,7 @@ query {
   }
 }</code></pre>
 
+            <!-- pagebreak -->
             <h2>3. gRPC (Remote Procedure Call)</h2>
             <p>Developed by Google, gRPC is an open-source high-performance RPC framework. It runs on top of <strong>HTTP/2</strong> (supporting bi-directional streaming and multiplexing) and uses <strong>Protocol Buffers (Protobuf)</strong> as its binary serialization format.</p>
             
@@ -688,6 +707,7 @@ query {
                 <li><strong>NoSQL Databases:</strong> Dynamic schema, scale horizontally easily, key-value, document, column-family, or graph models. Great for unstructured data or massive scale. *Examples: MongoDB, Cassandra, DynamoDB.*</li>
             </ul>
 
+            <!-- pagebreak -->
             <h2>2. Database Indexing</h2>
             <p>Indexes speed up query read operations at the cost of slower write speeds and extra storage. The two primary index data structures are:</p>
             <ul>
@@ -695,6 +715,7 @@ query {
                 <li><strong>LSM-Trees (Log-Structured Merge-Trees):</strong> Optimize write performance by appending writes to an in-memory buffer (MemTable) and flushing them sequentially to immutable disk logs (SSTables). Used by Cassandra, RocksDB.</li>
             </ul>
 
+            <!-- pagebreak -->
             <h2>3. Database Sharding (Horizontal Partitioning)</h2>
             <p>Sharding breaks a large database table into smaller pieces (shards) distributed across multiple database servers.</p>
             <ul>
@@ -748,12 +769,14 @@ query {
                 <li><strong>99.999% (Five Nines):</strong> ~5.26 minutes of downtime per year. (High-Availability standard).</li>
             </ul>
 
+            <!-- pagebreak -->
             <h2>2. Redundancy Patterns</h2>
             <ul>
                 <li><strong>Active-Passive (Failover):</strong> One active node serves traffic; passive nodes replicate data in real-time. If the active node dies, a heartbeat detector triggers a failover, promoting a passive node.</li>
                 <li><strong>Active-Active:</strong> Multiple nodes serve traffic simultaneously. If one node dies, load balancers stop routing traffic to it.</li>
             </ul>
 
+            <!-- pagebreak -->
             <h2>3. DR Metrics: RPO and RTO</h2>
             <div class="uml-text-box">
 [Disaster Event]
@@ -800,12 +823,14 @@ query {
                 <li><strong>Factory Method:</strong> Provides an interface for creating objects in a superclass, but allows subclasses to alter the type of objects created.</li>
             </ul>
 
+            <!-- pagebreak -->
             <h2>2. Structural Patterns (Relationships between entities)</h2>
             <ul>
                 <li><strong>Adapter:</strong> Allows objects with incompatible interfaces to collaborate. Acts as a translator.</li>
                 <li><strong>Proxy:</strong> Provides a placeholder or surrogate object to control access to the original object (e.g., security gate, lazy loading, caching proxy).</li>
             </ul>
 
+            <!-- pagebreak -->
             <h2>3. Behavioral Patterns (Object Collaboration)</h2>
             <ul>
                 <li><strong>Observer (Pub/Sub):</strong> Defines a subscription mechanism to notify multiple observer objects of any events that happen to the subject they are observing.</li>
@@ -860,10 +885,12 @@ class OrderProcessor {
                 <li><strong>Authorization (AuthZ):</strong> Verifying **what** permissions they have (e.g. RBAC - Role Based Access Control, ABAC - Attribute Based Access Control).</li>
             </ul>
 
+            <!-- pagebreak -->
             <h2>2. Modern Token Protocols: JWT & OAuth2</h2>
             <p><strong>JSON Web Token (JWT):</strong> Stateless credentials containing signed JSON claims (e.g., user ID, roles). Self-contained, but impossible to revoke before expiration without blacklist databases.</p>
             <p><strong>OAuth 2.0:</strong> An industry-standard delegation framework that allows client applications to obtain limited access to user accounts on an HTTP service (e.g. "Login with Google").</p>
 
+            <!-- pagebreak -->
             <h2>3. Network Security Boundaries</h2>
             <ul>
                 <li><strong>TLS/HTTPS:</strong> Encrypts data in transit to prevent Man-in-the-Middle (MitM) attacks.</li>
@@ -955,6 +982,7 @@ class OrderProcessor {
                 </tbody>
             </table>
 
+            <!-- pagebreak -->
             <h2>Key Cloud Abstractions</h2>
             <ul>
                 <li><strong>Regions & Availability Zones:</strong> A **Region** is a geographic area. An **Availability Zone (AZ)** is one or more discrete data centers with redundant power, networking, and connectivity within a Region. Designing for HA requires deploying services across multiple AZs.</li>
@@ -996,6 +1024,7 @@ class OrderProcessor {
                 <li><strong>Graph Store (TAO):</strong> Facebook's custom write-through cache distributed globally to map social graph nodes (users, pages) and edges (likes, friendships).</li>
             </ul>
 
+            <!-- pagebreak -->
             <h2>2. YouTube: High-Scale Video Delivery</h2>
             <p><strong>Challenge:</strong> Processing huge video uploads and serving them with minimum buffering globally.</p>
             <ul>
@@ -1003,18 +1032,21 @@ class OrderProcessor {
                 <li><strong>CDN Edge Optimization:</strong> Dynamic caching of popular videos closer to users, using ISP colocation servers.</li>
             </ul>
 
+            <!-- pagebreak -->
             <h2>3. Uber: Real-time Dispatch</h2>
             <p><strong>Challenge:</strong> Match passengers with nearby drivers in real-time, matching coordinates 1-to-1.</p>
             <ul>
                 <li><strong>Geospatial Indexing (H3/S2):</strong> Divides the map of the earth into hierarchical hexagonal (H3) or quadkey (S2) cells. Active driver locations are updated continuously to in-memory index maps, allowing rapid proximity queries.</li>
             </ul>
 
+            <!-- pagebreak -->
             <h2>4. WhatsApp: Million-Connection Chat</h2>
             <p><strong>Challenge:</strong> Keeping websocket channels open for millions of concurrent active chats.</p>
             <ul>
                 <li><strong>Erlang/OTP:</strong> Built on Erlang for lightweight processes and concurrency, letting a single node run millions of active connection threads.</li>
             </ul>
 
+            <!-- pagebreak -->
             <h2>5. Netflix: Resilient Global Streaming</h2>
             <p><strong>Challenge:</strong> Handle 15%+ of global internet bandwidth without downtime.</p>
             <ul>
@@ -1038,6 +1070,90 @@ class OrderProcessor {
                 ],
                 answer: 1,
                 explanation: "If a user has 80 million followers, posting a tweet requires writing 80 million feed logs (Fan-out-on-write). This crashes database clusters. A hybrid model pulls celebrity data on-demand (Fan-out-on-read) and merges it."
+            }
+        ]
+    },
+    {
+        id: "monitoring-observability",
+        title: "Monitoring, Observability & Alerting",
+        category: "Infrastructure & Cloud",
+        content: `
+            <h1>Monitoring, Observability & Alerting</h1>
+            <p>At scale, systems fail. When they do, SREs (Site Reliability Engineers) need visibility to detect, debug, and resolve issues before they impact customers.</p>
+
+            <h2>1. The Three Pillars of Observability</h2>
+            <p>Observability is the measure of how well internal states of a system can be inferred from its external outputs (telemetry data):</p>
+            <ul>
+                <li><strong>Metrics:</strong> Numeric measurements aggregated over time (e.g. CPU usage, request count, latency percentiles p99). Extremely cheap to store and query.</li>
+                <li><strong>Logs:</strong> Structured timestamped text events generated by applications (e.g. JSON log containing error stack traces). Expensive to store and search.</li>
+                <li><strong>Traces:</strong> End-to-end request lifecycle records showing paths and latencies across multiple microservices (using trace IDs and span IDs). Key for debugging distributed systems.</li>
+            </ul>
+
+            <!-- pagebreak -->
+            <h2>2. Prometheus & Push vs Pull Metrics</h2>
+            <p>There are two primary paradigms for gathering metrics from application servers:</p>
+            <ul>
+                <li><strong>Pull Model (e.g. Prometheus):</strong> The monitoring server scrapes metrics from HTTP endpoints (like <code>/metrics</code>) exposed by the applications at regular intervals. Simple, targets self-discovery, prevents DDoS on server.</li>
+                <li><strong>Push Model (e.g. InfluxDB, CloudWatch):</strong> Application agents push telemetry metrics directly to a central collector. Ideal for short-lived ephemeral tasks (like AWS Lambda functions).</li>
+            </ul>
+
+            <!-- pagebreak -->
+            <h2>3. Distributed Tracing (Jaeger & OpenTelemetry)</h2>
+            <p>When a client calls a microservices system, a single request can touch 20 separate services. If it is slow, how do we find the bottleneck? Distributed tracing tags each request with a unique <strong>Trace ID</strong> at the gateway, passing it down headers. Each component adds its own timed segment called a <strong>Span ID</strong>.</p>
+            
+            <div class="uml-text-box">
+Trace ID: 0x9f2a (Total: 400ms)
++---------------------------------------------+
+| Gateway (Span A) [0ms - 400ms]              |
++---------------------------------------------+
+   \\--+-------------------------------+
+      | AuthSrv (Span B) [5ms - 55ms] |
+      +-------------------------------+
+   \\--+--------------------------------------+
+      | OrderSrv (Span C) [60ms - 390ms]      |
+      +---------------------------------------+
+         \\--+------------------------+
+            | DB Query (Span D)      |
+            | [80ms - 380ms]         |
+            +------------------------+
+            </div>
+
+            <!-- pagebreak -->
+            <h2>4. Alerting & SLI/SLO/SLA</h2>
+            <p>Observability data is useless without a structured alerting framework to page on-call engineers.</p>
+            <ul>
+                <li><strong>SLI (Service Level Indicator):</strong> The quantitative measure of service performance (e.g. Latency of successful calls < 200ms).</li>
+                <li><strong>SLO (Service Level Objective):</strong> The target reliability goal agreed upon by product teams (e.g. 99% of successful requests must have latency < 200ms over 30 days).</li>
+                <li><strong>SLA (Service Level Agreement):</strong> The legal/business contract with customers defining penalties if the SLO is breached (e.g. 99.9% availability or customers get 10% refund).</li>
+            </ul>
+        `,
+        visualizer: {
+            type: "observability-flow",
+            title: "Observability & Alerting Dashboard",
+            desc: "Simulate load spikes and watch metrics, logs, and distributed traces respond in real-time."
+        },
+        quiz: [
+            {
+                question: "What are the three pillars of observability in distributed systems?",
+                options: [
+                    "Security, Speed, and Stability",
+                    "SQL, NoSQL, and NewSQL",
+                    "Metrics, Logs, and Distributed Traces",
+                    "Load Balancers, Caches, and Message Queues"
+                ],
+                answer: 2,
+                explanation: "Metrics, Logs, and Distributed Traces are the three core telemetry types that give developers and SREs deep visibility into active system state and execution bottlenecks."
+            },
+            {
+                question: "What is the difference between an SLI and an SLO?",
+                options: [
+                    "An SLI is a legal contract, while an SLO is a technical metric.",
+                    "An SLI is the actual quantitative measurement of a metric, whereas an SLO is the target objective for that indicator.",
+                    "They are identical terms.",
+                    "SLIs are for hardware; SLOs are for software."
+                ],
+                answer: 1,
+                explanation: "The SLI is the indicator (e.g., current error rate = 0.5%). The SLO is the objective target (e.g., error rate must remain < 1.0% over 30 days)."
             }
         ]
     }
@@ -1079,6 +1195,7 @@ func main() {
     }
 }</code></pre>
 
+            <!-- pagebreak -->
             <h2>2. Intermediate: Structs, Interfaces & Error Handling</h2>
             <p>Go does not have classes or classical inheritance. It uses **structs** for data encapsulation and **interfaces** for polymorphism. Interfaces are implemented **implicitly** (structural typing).</p>
             <pre><code>package main
@@ -1113,6 +1230,7 @@ func divide(a, b float64) (float64, error) {
     return a / b, nil
 }</code></pre>
 
+            <!-- pagebreak -->
             <h2>3. Advanced: Concurrency (Goroutines & Channels)</h2>
             <p>Go's primary selling point is its concurrency model, based on **Communicating Sequential Processes (CSP)**.</p>
             <ul>
@@ -1211,6 +1329,7 @@ func main() {
     }
 }</code></pre>
 
+            <!-- pagebreak -->
             <h2>2. Intermediate: Structs, Enums & Traits</h2>
             <p>Rust uses <code>struct</code> to group data, <code>enum</code> to represent types that can be one of several variants (sum types), and <code>trait</code> to define shared behavior (interfaces).</p>
             <pre><code>// Sum type Enum containing data payloads
@@ -1236,6 +1355,7 @@ impl Summary for Article {
     }
 }</code></pre>
 
+            <!-- pagebreak -->
             <h2>3. Advanced: Ownership, Borrowing & Concurrency</h2>
             <p>Rust's compiler tracks memory safety using rules of ownership:</p>
             <ol>
@@ -1311,6 +1431,7 @@ const newUser: User = {
     email: "jericalcantara018@gmail.com"
 };</code></pre>
 
+            <!-- pagebreak -->
             <h2>2. Intermediate: Generics & Utility Types</h2>
             <p>Generics enable developers to create reusable code templates that operate on multiple types rather than a single one, while maintaining full type safety.</p>
             <pre><code>// Generic API response container
@@ -1335,6 +1456,7 @@ async function getProfile(id: number): Promise<ApiResponse<UserProfile>> {
 type PartialUser = Partial<User>; // Makes all User fields optional
 type ReadonlyUser = Readonly<User>; // Makes all fields read-only</code></pre>
 
+            <!-- pagebreak -->
             <h2>3. Advanced: Async Concurrency & Event Loops</h2>
             <p>JavaScript and TypeScript run on a single-threaded **Event Loop** using microtasks and macrotasks to support async executions without threading locks.</p>
             <pre><code>// Asynchronous promise workflow
@@ -1392,6 +1514,7 @@ user_map = {"id": 18, "role": "admin"}
 for key, value in user_map.items():
     print(f"{key}: {value}")</code></pre>
 
+            <!-- pagebreak -->
             <h2>2. Intermediate: Object Oriented & Decorators</h2>
             <p>Python supports full Object-Oriented Programming (OOP) and includes **decorators** (functions that modify the behavior of other functions).</p>
             <pre><code># Simple Decorator
@@ -1411,6 +1534,7 @@ class DatabaseConnector:
     def query(self, sql: str):
         return f"Executing {sql} against {self.dsn}"</code></pre>
 
+            <!-- pagebreak -->
             <h2>3. Advanced: Concurrency & Asyncio</h2>
             <p>Python historically struggled with thread-based parallel CPU execution because of the **Global Interpreter Lock (GIL)**. For I/O bound workloads (like network APIs), Python utilizes modern async event loops via <code>asyncio</code>.</p>
             <pre><code>import asyncio
