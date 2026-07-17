@@ -535,20 +535,31 @@ function renderChecklist() {
     const medPriority = state.trackerTasks.filter(t => t.priority === "Medium").length;
     const lowPriority = state.trackerTasks.filter(t => t.priority === "Low").length;
 
+    // Local timezone date string helper (YYYY-MM-DD)
+    const getLocalDateStr = (dObj) => {
+        if (!dObj) return "";
+        const date = new Date(dObj);
+        if (isNaN(date.getTime())) return "";
+        const yyyy = date.getFullYear();
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    };
+
     // Calculate timeframe analytics metrics
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = getLocalDateStr(now);
 
-    // Current week start (Monday) and end (Sunday)
-    const currentDay = now.getDay();
-    const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay; // adjust for Sunday
+    // Current week start (Monday) and end (Sunday) in local time
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
     const monday = new Date(now);
-    monday.setDate(now.getDate() + distanceToMonday);
+    monday.setDate(diff);
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
 
-    const mondayStr = monday.toISOString().split('T')[0];
-    const sundayStr = sunday.toISOString().split('T')[0];
+    const mondayStr = getLocalDateStr(monday);
+    const sundayStr = getLocalDateStr(sunday);
 
     const currentMonthStr = todayStr.substring(0, 7); // "YYYY-MM"
     const currentYearStr = todayStr.substring(0, 4); // "YYYY"
@@ -563,9 +574,9 @@ function renderChecklist() {
     };
 
     const dayStats = getTimeframeStats(t => t.dueDate === todayStr);
-    const weekStats = getTimeframeStats(t => t.dueDate && t.dueDate >= mondayStr && t.dueDate <= sundayStr);
-    const monthStats = getTimeframeStats(t => t.dueDate && t.dueDate.startsWith(currentMonthStr));
-    const yearStats = getTimeframeStats(t => t.dueDate && t.dueDate.startsWith(currentYearStr));
+    const weekStats = getTimeframeStats(t => (t.dueDate || getLocalDateStr(t.completedAt)) && (t.dueDate || getLocalDateStr(t.completedAt)) >= mondayStr && (t.dueDate || getLocalDateStr(t.completedAt)) <= sundayStr);
+    const monthStats = getTimeframeStats(t => (t.dueDate || getLocalDateStr(t.completedAt)) && (t.dueDate || getLocalDateStr(t.completedAt)).startsWith(currentMonthStr));
+    const yearStats = getTimeframeStats(t => (t.dueDate || getLocalDateStr(t.completedAt)) && (t.dueDate || getLocalDateStr(t.completedAt)).startsWith(currentYearStr));
 
     // 1. RENDER DASHBOARD METRICS HEADER (MindForm Sheets style)
     const dashboard = document.createElement("div");
@@ -639,14 +650,13 @@ function renderChecklist() {
     if (state.trackerGraphTab === "Daily") {
         graphLabels = ["12am-6am", "6am-12pm", "12pm-6pm", "6pm-12am"];
         graphValues = [0, 0, 0, 0];
-        const todayStr = new Date().toISOString().split('T')[0];
         
         state.trackerTasks.forEach(t => {
             if (t.status === "Completed") {
-                const compDateStr = (t.completedAt || t.dueDate || "").split('T')[0];
+                const compDateStr = t.completedAt ? getLocalDateStr(t.completedAt) : (t.dueDate || "");
                 if (compDateStr === todayStr) {
                     let hour = 12; // default fallback (12 PM)
-                    if (t.completedAt && t.completedAt.includes('T')) {
+                    if (t.completedAt) {
                         hour = new Date(t.completedAt).getHours();
                     }
                     
@@ -664,43 +674,43 @@ function renderChecklist() {
         });
     } else if (state.trackerGraphTab === "Weekly") {
         for (let i = 6; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            const dateStr = d.toISOString().split('T')[0];
+            const d = new Date(now);
+            d.setDate(now.getDate() - i);
+            const dateStr = getLocalDateStr(d);
             const label = d.toLocaleDateString('en-US', { weekday: 'short' });
             graphLabels.push(label);
             
             const count = state.trackerTasks.filter(t => {
                 if (t.status !== "Completed") return false;
-                const compDateStr = (t.completedAt || t.dueDate || "").split('T')[0];
+                const compDateStr = t.completedAt ? getLocalDateStr(t.completedAt) : (t.dueDate || "");
                 return compDateStr === dateStr;
             }).length;
             graphValues.push(count);
         }
     } else if (state.trackerGraphTab === "Monthly") {
         for (let i = 4; i >= 0; i--) {
-            const d = new Date();
-            d.setMonth(d.getMonth() - i);
-            const yearMonth = d.toISOString().split('T')[0].substring(0, 7);
+            const d = new Date(now);
+            d.setMonth(now.getMonth() - i);
+            const yearMonth = getLocalDateStr(d).substring(0, 7);
             const label = d.toLocaleDateString('en-US', { month: 'short' });
             graphLabels.push(label);
             
             const count = state.trackerTasks.filter(t => {
                 if (t.status !== "Completed") return false;
-                const compDateStr = (t.completedAt || t.dueDate || "").split('T')[0];
+                const compDateStr = t.completedAt ? getLocalDateStr(t.completedAt) : (t.dueDate || "");
                 return compDateStr && compDateStr.startsWith(yearMonth);
             }).length;
             graphValues.push(count);
         }
     } else if (state.trackerGraphTab === "Yearly") {
-        const currentYear = new Date().getFullYear();
+        const currentYear = now.getFullYear();
         for (let i = 4; i >= 0; i--) {
             const yr = currentYear - i;
             graphLabels.push(yr.toString());
             
             const count = state.trackerTasks.filter(t => {
                 if (t.status !== "Completed") return false;
-                const compDateStr = (t.completedAt || t.dueDate || "").split('T')[0];
+                const compDateStr = t.completedAt ? getLocalDateStr(t.completedAt) : (t.dueDate || "");
                 return compDateStr && compDateStr.startsWith(yr.toString());
             }).length;
             graphValues.push(count);
@@ -783,8 +793,13 @@ function renderChecklist() {
 
             <!-- Data Point Labels and Highlight Markers -->
             ${points.map(pt => `
-                <circle cx="${pt.x}" cy="${pt.y}" r="5" fill="var(--accent-cyan)" stroke="#fff" stroke-width="1.5" />
-                <text x="${pt.x}" y="${pt.y - 12}" text-anchor="middle" fill="var(--accent-green)" style="font-size:0.75rem; font-weight:800;">${pt.val}</text>
+                <circle cx="${pt.x}" cy="${pt.y}" r="5" fill="var(--accent-cyan)" stroke="#fff" stroke-width="1.5">
+                    <title>${pt.label}: ${pt.val} tasks completed</title>
+                </circle>
+                <text x="${pt.x}" y="${pt.y - 12}" text-anchor="middle" fill="var(--accent-green)" style="font-size:0.75rem; font-weight:800;">
+                    <title>${pt.label}: ${pt.val} tasks completed</title>
+                    ${pt.val}
+                </text>
             `).join("")}
 
             <!-- X Axis Text -->
@@ -792,14 +807,23 @@ function renderChecklist() {
         </svg>
     `;
 
+    // Format current time and date
+    const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const formattedDate = todayStr;
+
     const analyticsRow = document.createElement("div");
     analyticsRow.style.cssText = "background:var(--bg-secondary); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:30px; box-shadow:var(--shadow-sm);";
     analyticsRow.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
-            <h3 style="font-size:0.9rem; font-weight:800; color:var(--text-primary); display:flex; align-items:center; gap:8px; text-transform:uppercase; letter-spacing:0.5px; margin:0;">
-                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M3 3v18h18"></path><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path></svg>
-                Task Completions Trend Graph
-            </h3>
+            <div>
+                <h3 style="font-size:0.9rem; font-weight:800; color:var(--text-primary); display:flex; align-items:center; gap:8px; text-transform:uppercase; letter-spacing:0.5px; margin:0;">
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><path d="M3 3v18h18"></path><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path></svg>
+                    Task Completions Trend Graph
+                </h3>
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px; font-weight:600;">
+                    Last analyzed: <span style="color:var(--accent-cyan); font-weight:700;">${formattedDate} at ${formattedTime}</span>
+                </div>
+            </div>
             <div style="display:flex; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:2px;" id="graphTimeframeTabs">
                 <button class="graph-tab-btn ${state.trackerGraphTab === 'Daily' ? 'active' : ''}" data-tab="Daily" style="padding:6px 12px; font-size:0.72rem; font-weight:700; border-radius:6px; border:none; cursor:pointer; background:${state.trackerGraphTab === 'Daily' ? 'var(--accent-cyan)' : 'transparent'}; color:${state.trackerGraphTab === 'Daily' ? '#0f172a' : 'var(--text-secondary)'}; transition:all 0.2s;">Daily</button>
                 <button class="graph-tab-btn ${state.trackerGraphTab === 'Weekly' ? 'active' : ''}" data-tab="Weekly" style="padding:6px 12px; font-size:0.72rem; font-weight:700; border-radius:6px; border:none; cursor:pointer; background:${state.trackerGraphTab === 'Weekly' ? 'var(--accent-cyan)' : 'transparent'}; color:${state.trackerGraphTab === 'Weekly' ? '#0f172a' : 'var(--text-secondary)'}; transition:all 0.2s;">Weekly</button>
@@ -1321,6 +1345,12 @@ function initVisualizer(config) {
         renderPythonGilVisualizer();
     } else if (id === "monitoring-observability") {
         renderObservabilityVisualizer();
+    } else if (id === "php") {
+        renderPhpOpcacheVisualizer();
+    } else if (id === "laravel") {
+        renderLaravelLifecycleVisualizer();
+    } else if (id === "flutter") {
+        renderFlutterWidgetTreeVisualizer();
     } else {
         visualizerCanvas.innerHTML = `<div class="no-visualizer">Default model viewer. No animation logic defined.</div>`;
     }
@@ -2791,6 +2821,392 @@ function renderObservabilityVisualizer() {
 
 // ==========================================================================
 // BOOTSTRAP INITIALIZATION ON PAGE LOAD
+// ==========================================================================
+// 19. PHP OPcache & JIT Visualizer
+function renderPhpOpcacheVisualizer() {
+    visualizerCanvas.innerHTML = `
+        <div class="interactive-grid">
+            <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+                <button class="flow-button" id="btnPhpTokenize" style="background: var(--accent-cyan); color: #0f172a;">1. Tokenize & AST</button>
+                <button class="flow-button" id="btnPhpOpcache" style="background: var(--accent-purple); color: #fff;" disabled>2. OPcache Store</button>
+                <button class="flow-button" id="btnPhpJit" style="background: var(--accent-orange); color: #0f172a;" disabled>3. JIT Compile</button>
+                <button class="flow-button" id="btnPhpReset" style="background: var(--surface); color: var(--text-primary);">Reset</button>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; width: 100%; margin-bottom: 20px;">
+                <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--border); padding: 15px; border-radius: 8px;">
+                    <h4 style="margin-bottom: 10px; font-size: 0.85rem; color: var(--accent-cyan); text-transform: uppercase;">PHP Code Engine</h4>
+                    <pre style="margin: 0; font-family: var(--font-mono); font-size: 0.75rem; color: #f8fafc; line-height:1.4;"><code>&lt;?php
+function calculate($n) {
+    $sum = 0;
+    for ($i = 0; $i &lt; $n; $i++) {
+        $sum += $i;
+    }
+    return $sum;
+}
+echo calculate(10000);
+?&gt;</code></pre>
+                </div>
+                
+                <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--border); padding: 15px; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 180px; position: relative;">
+                    <div id="phpPipelineGraphic" style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
+                        <div class="node-box" id="nodeSource" style="padding: 6px; font-size: 0.75rem; border-color: var(--text-muted); text-align: center;">Source Code</div>
+                        <div class="node-box" id="nodeTokens" style="padding: 6px; font-size: 0.75rem; border-color: var(--text-muted); text-align: center;">Tokens & AST</div>
+                        <div class="node-box" id="nodeBytecode" style="padding: 6px; font-size: 0.75rem; border-color: var(--text-muted); text-align: center;">Zend Bytecode (OPcache)</div>
+                        <div class="node-box" id="nodeJit" style="padding: 6px; font-size: 0.75rem; border-color: var(--text-muted); text-align: center;">JIT Native Machine Code</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Memory and Performance Stats -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; width: 100%; margin-bottom: 20px;">
+                <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--border); padding: 10px; border-radius: 6px; text-align: center;">
+                    <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase;">OPcache Status</div>
+                    <div id="opcacheHit" style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted); margin-top: 2px;">MISS / INACTIVE</div>
+                </div>
+                <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--border); padding: 10px; border-radius: 6px; text-align: center;">
+                    <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase;">Execution Mode</div>
+                    <div id="execMode" style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted); margin-top: 2px;">INTERPRETER</div>
+                </div>
+                <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--border); padding: 10px; border-radius: 6px; text-align: center;">
+                    <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase;">Time taken</div>
+                    <div id="execTime" style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary); margin-top: 2px;">--</div>
+                </div>
+            </div>
+
+            <div style="width: 100%;">
+                <h4 style="margin-bottom: 8px; font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase;">PHP Compilation Console</h4>
+                <div id="phpConsole" style="background: #0b0f19; border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-family: var(--font-mono); font-size: 0.75rem; color: #38bdf8; height: 100px; overflow-y: auto; text-align: left; line-height: 1.4;">
+                    <div>[Zend Engine v4.x] Ready. Click 'Tokenize & AST' to begin compilation.</div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const btnTokenize = document.getElementById("btnPhpTokenize");
+    const btnOpcache = document.getElementById("btnPhpOpcache");
+    const btnJit = document.getElementById("btnPhpJit");
+    const btnReset = document.getElementById("btnPhpReset");
+
+    const nodeSource = document.getElementById("nodeSource");
+    const nodeTokens = document.getElementById("nodeTokens");
+    const nodeBytecode = document.getElementById("nodeBytecode");
+    const nodeJit = document.getElementById("nodeJit");
+
+    const opcacheHit = document.getElementById("opcacheHit");
+    const execMode = document.getElementById("execMode");
+    const execTime = document.getElementById("execTime");
+    const phpConsole = document.getElementById("phpConsole");
+
+    function log(msg, color = "#38bdf8") {
+        const div = document.createElement("div");
+        div.style.color = color;
+        div.textContent = msg;
+        phpConsole.appendChild(div);
+        phpConsole.scrollTop = phpConsole.scrollHeight;
+    }
+
+    btnTokenize.onclick = () => {
+        nodeSource.className = "node-box active-green";
+        nodeTokens.className = "node-box active-cyan";
+        log("[INFO] Tokenizer complete: generated 42 tokens (T_FUNCTION, T_VARIABLE, T_FOR, etc.)", "#06b6d4");
+        log("[INFO] Parser complete: abstract syntax tree built. Node root: AST_FUNC_DECL", "#06b6d4");
+        btnTokenize.disabled = true;
+        btnOpcache.disabled = false;
+    };
+
+    btnOpcache.onclick = () => {
+        nodeBytecode.className = "node-box active-purple";
+        opcacheHit.textContent = "OPCACHE HIT";
+        opcacheHit.style.color = "var(--accent-purple)";
+        log("[INFO] Compiler complete: Zend Bytecode generated (ZEND_NOP, ZEND_ASSIGN, ZEND_JMP, ZEND_RETURN)", "var(--accent-purple)");
+        log("[SUCCESS] Bytecode cached in shared memory. Next requests will bypass parsing and compilation!", "#10b981");
+        btnOpcache.disabled = true;
+        btnJit.disabled = false;
+    };
+
+    btnJit.onclick = () => {
+        nodeJit.className = "node-box active-orange";
+        execMode.textContent = "JIT / NATIVE";
+        execMode.style.color = "var(--accent-orange)";
+        execTime.textContent = "0.14 ms (8.2x faster)";
+        log("[INFO] JIT compiler analyzed bytecode. Detected hot loop in calculate()", "var(--accent-orange)");
+        log("[INFO] JIT generated native x86 machine instructions for fast CPU execution", "var(--accent-orange)");
+        log("[SUCCESS] Execution complete. Result = 49995000", "#10b981");
+        btnJit.disabled = true;
+    };
+
+    btnReset.onclick = () => {
+        nodeSource.className = "node-box";
+        nodeTokens.className = "node-box";
+        nodeBytecode.className = "node-box";
+        nodeJit.className = "node-box";
+        opcacheHit.textContent = "MISS / INACTIVE";
+        opcacheHit.style.color = "var(--text-muted)";
+        execMode.textContent = "INTERPRETER";
+        execMode.style.color = "var(--text-muted)";
+        execTime.textContent = "--";
+        phpConsole.innerHTML = "<div>[Zend Engine v4.x] Ready. Click 'Tokenize & AST' to begin compilation.</div>";
+        btnTokenize.disabled = false;
+        btnOpcache.disabled = true;
+        btnJit.disabled = true;
+    };
+}
+
+// 20. Laravel Request Lifecycle Visualizer
+function renderLaravelLifecycleVisualizer() {
+    visualizerCanvas.innerHTML = `
+        <div class="interactive-grid">
+            <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+                <button class="flow-button" id="btnLaravelNext" style="background: var(--accent-cyan); color: #0f172a;">Next Lifecycle Step</button>
+                <button class="flow-button" id="btnLaravelAuto" style="background: var(--accent-green); color: #0f172a;">Auto Play</button>
+                <button class="flow-button" id="btnLaravelReset" style="background: var(--surface); color: var(--text-primary);">Reset</button>
+            </div>
+
+            <!-- Diagram area -->
+            <div style="display: flex; flex-direction: column; gap: 10px; width: 100%; background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 8px; padding: 15px; min-height: 200px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; position: relative;">
+                    <div class="node-box" id="larNode1" style="flex: 1; min-width: 90px; padding: 8px 4px; font-size: 0.7rem; text-align: center;">1. Request Ingress (index.php)</div>
+                    <div style="color: var(--text-muted);">&rarr;</div>
+                    <div class="node-box" id="larNode2" style="flex: 1; min-width: 90px; padding: 8px 4px; font-size: 0.7rem; text-align: center;">2. HTTP Kernel & Container</div>
+                    <div style="color: var(--text-muted);">&rarr;</div>
+                    <div class="node-box" id="larNode3" style="flex: 1; min-width: 90px; padding: 8px 4px; font-size: 0.7rem; text-align: center;">3. Service Providers</div>
+                    <div style="color: var(--text-muted);">&rarr;</div>
+                    <div class="node-box" id="larNode4" style="flex: 1; min-width: 90px; padding: 8px 4px; font-size: 0.7rem; text-align: center;">4. Middleware Stack</div>
+                    <div style="color: var(--text-muted);">&rarr;</div>
+                    <div class="node-box" id="larNode5" style="flex: 1; min-width: 90px; padding: 8px 4px; font-size: 0.7rem; text-align: center;">5. Router & Controller</div>
+                </div>
+
+                <!-- Info Card -->
+                <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-top: 15px;" id="laravelStepInfo">
+                    <h4 style="color: var(--accent-cyan); font-size: 0.85rem; margin-bottom: 4px;">Step 0: Idle</h4>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0;">Click 'Next Lifecycle Step' or 'Auto Play' to trace the lifecycle of a Laravel request.</p>
+                </div>
+            </div>
+
+            <!-- Active Bindings panel -->
+            <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--border); padding: 15px; border-radius: 8px; width: 100%;">
+                <h4 style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase;">Service Container Bindings</h4>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="laravelBindings">
+                    <span style="font-size: 0.7rem; padding: 3px 8px; background: rgba(255,255,255,0.05); border-radius: 4px; color: var(--text-muted);">No active bindings</span>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const btnNext = document.getElementById("btnLaravelNext");
+    const btnAuto = document.getElementById("btnLaravelAuto");
+    const btnReset = document.getElementById("btnLaravelReset");
+    const stepInfo = document.getElementById("laravelStepInfo");
+    const bindings = document.getElementById("laravelBindings");
+
+    let currentStep = 0;
+    let timer = null;
+
+    const steps = [
+        {
+            title: "Step 1: Request Ingress (public/index.php)",
+            desc: "The HTTP request hits public/index.php. Composer's class autoloader is loaded, and then Laravel bootstraps itself, loading environment files and system configurations.",
+            activeNodes: [1],
+            bindings: ["Illuminate\\Foundation\\Application", "composerAutoloader"]
+        },
+        {
+            title: "Step 2: HTTP Kernel Handshake",
+            desc: "The request is passed to the HTTP Kernel (app/Http/Kernel.php). The Kernel bootstraps the core of Laravel, sets up error logging, determines configurations, and initializes the Service Container.",
+            activeNodes: [1, 2],
+            bindings: ["Illuminate\\Foundation\\Application", "composerAutoloader", "Illuminate\\Contracts\\Http\\Kernel", "request"]
+        },
+        {
+            title: "Step 3: Booting Service Providers",
+            desc: "Service Providers are loaded from config/app.php. Laravel boots them by running the register() and boot() methods. This registers route databases, authentication guards, log channels, and database configurations.",
+            activeNodes: [2, 3],
+            bindings: ["Illuminate\\Foundation\\Application", "composerAutoloader", "Illuminate\\Contracts\\Http\\Kernel", "request", "db", "auth", "router", "view"]
+        },
+        {
+            title: "Step 4: Executing Middleware Pipeline",
+            desc: "The request passes through the middleware pipeline. Group middleware (like CheckSession, EncryptCookies, VerifyCsrfToken) validates request properties and handles CSRF validation, session boots, or authentication redirects.",
+            activeNodes: [3, 4],
+            bindings: ["Illuminate\\Foundation\\Application", "composerAutoloader", "Illuminate\\Contracts\\Http\\Kernel", "request", "db", "auth", "router", "view", "session", "encrypter"]
+        },
+        {
+            title: "Step 5: Router & Controller Response",
+            desc: "The Router resolves the URI to a Controller action. The controller executes, fetches models via Eloquent ORM, compiles templates, and returns an HTTP Response object back through the middleware stream to the user.",
+            activeNodes: [4, 5],
+            bindings: ["Illuminate\\Foundation\\Application", "composerAutoloader", "Illuminate\\Contracts\\Http\\Kernel", "request", "db", "auth", "router", "view", "session", "encrypter", "response"]
+        }
+    ];
+
+    function renderStep() {
+        // Clear active classes
+        for (let i = 1; i <= 5; i++) {
+            document.getElementById(`larNode${i}`).className = "node-box";
+        }
+
+        if (currentStep === 0) {
+            stepInfo.innerHTML = `
+                <h4 style="color: var(--accent-cyan); font-size: 0.85rem; margin-bottom: 4px;">Step 0: Idle</h4>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0;">Click 'Next Lifecycle Step' or 'Auto Play' to trace the lifecycle of a Laravel request.</p>
+            `;
+            bindings.innerHTML = `<span style="font-size: 0.7rem; padding: 3px 8px; background: rgba(255,255,255,0.05); border-radius: 4px; color: var(--text-muted);">No active bindings</span>`;
+            return;
+        }
+
+        const step = steps[currentStep - 1];
+        step.activeNodes.forEach(num => {
+            const el = document.getElementById(`larNode${num}`);
+            if (num === currentStep) {
+                el.className = "node-box active-cyan";
+            } else {
+                el.className = "node-box active-green";
+            }
+        });
+
+        stepInfo.innerHTML = `
+            <h4 style="color: var(--accent-cyan); font-size: 0.85rem; margin-bottom: 4px;">${step.title}</h4>
+            <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0;">${step.desc}</p>
+        `;
+
+        bindings.innerHTML = step.bindings.map(b => `
+            <span style="font-size: 0.7rem; padding: 3px 8px; background: rgba(6,182,212,0.15); border:1px solid rgba(6,182,212,0.3); border-radius: 4px; color: #06b6d4; font-weight:700;">${b}</span>
+        `).join("");
+    }
+
+    btnNext.onclick = () => {
+        if (timer) clearInterval(timer);
+        currentStep = (currentStep % 5) + 1;
+        renderStep();
+    };
+
+    btnAuto.onclick = () => {
+        if (timer) clearInterval(timer);
+        btnAuto.disabled = true;
+        currentStep = 1;
+        renderStep();
+        timer = setInterval(() => {
+            if (currentStep < 5) {
+                currentStep++;
+                renderStep();
+            } else {
+                clearInterval(timer);
+                btnAuto.disabled = false;
+            }
+        }, 1500);
+    };
+
+    btnReset.onclick = () => {
+        if (timer) clearInterval(timer);
+        currentStep = 0;
+        btnAuto.disabled = false;
+        renderStep();
+    };
+}
+
+// 21. Flutter Widget Tree Visualizer
+function renderFlutterWidgetTreeVisualizer() {
+    visualizerCanvas.innerHTML = `
+        <div class="interactive-grid">
+            <!-- Mock Flutter App Card -->
+            <div style="display: flex; gap: 20px; align-items: flex-start; width: 100%; margin-bottom: 20px; flex-wrap: wrap;">
+                <div style="background: #121824; border: 2px solid #02569B; border-radius: 12px; padding: 15px; width: 140px; text-align: center; box-shadow: var(--shadow-md);">
+                    <div style="background: #02569B; color:#fff; font-size: 0.65rem; padding: 4px; border-radius: 4px; font-weight:700; margin-bottom: 12px;">Flutter Counter Mock</div>
+                    <div style="font-size: 1.5rem; font-weight: 800; color: #fff; margin: 10px 0;" id="flCountVal">0</div>
+                    <button class="flow-button" id="btnFlIncrement" style="background: #02569B; color: #fff; border-radius: 50%; width: 36px; height: 36px; padding:0; display:inline-flex; align-items:center; justify-content:center; font-size: 1.25rem; font-weight:800; cursor:pointer;">+</button>
+                </div>
+
+                <div style="flex: 1; min-width: 200px;">
+                    <h4 style="margin: 0 0 6px 0; font-size: 0.85rem; color: var(--accent-cyan);">Flutter Three-Tree Architecture</h4>
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin: 0;">Click the **+** button on the counter widget mock to see how state modification diffs the three trees.</p>
+                </div>
+            </div>
+
+            <!-- Three Trees columns -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; min-height: 180px;">
+                <!-- Column 1: Widget Tree -->
+                <div style="display: flex; flex-direction: column; gap: 6px; align-items: center; border-right: 1px dashed var(--border);">
+                    <div style="font-size: 0.7rem; font-weight: 700; color: var(--accent-cyan); text-transform: uppercase;">Widget Tree</div>
+                    <div class="node-box" id="wtNode1" style="width: 90%; padding: 4px; font-size: 0.65rem; text-align: center; border-color: #02569B; color:#fff;">MyApp</div>
+                    <div class="node-box" id="wtNode2" style="width: 90%; padding: 4px; font-size: 0.65rem; text-align: center; border-color: #02569B; color:#fff;">CounterPage</div>
+                    <div class="node-box" id="wtNode3" style="width: 90%; padding: 4px; font-size: 0.65rem; text-align: center; border-color: #02569B; color:#fff;">Text("0")</div>
+                </div>
+
+                <!-- Column 2: Element Tree -->
+                <div style="display: flex; flex-direction: column; gap: 6px; align-items: center; border-right: 1px dashed var(--border);">
+                    <div style="font-size: 0.7rem; font-weight: 700; color: var(--accent-green); text-transform: uppercase;">Element Tree</div>
+                    <div class="node-box" id="etNode1" style="width: 90%; padding: 4px; font-size: 0.65rem; text-align: center; border-color: #059669; color:#fff;">StatelessElement</div>
+                    <div class="node-box" id="etNode2" style="width: 90%; padding: 4px; font-size: 0.65rem; text-align: center; border-color: #059669; color:#fff;">StatefulElement</div>
+                    <div class="node-box" id="etNode3" style="width: 90%; padding: 4px; font-size: 0.65rem; text-align: center; border-color: #059669; color:#fff;">LeafElement</div>
+                </div>
+
+                <!-- Column 3: RenderObject Tree -->
+                <div style="display: flex; flex-direction: column; gap: 6px; align-items: center;">
+                    <div style="font-size: 0.7rem; font-weight: 700; color: var(--accent-orange); text-transform: uppercase;">Render Tree</div>
+                    <div class="node-box" id="rtNode1" style="width: 90%; padding: 4px; font-size: 0.65rem; text-align: center; border-color: #ea580c; color:#fff;">RenderView</div>
+                    <div class="node-box" id="rtNode2" style="width: 90%; padding: 4px; font-size: 0.65rem; text-align: center; border-color: #ea580c; color:#fff;">RenderConstrainedBox</div>
+                    <div class="node-box" id="rtNode3" style="width: 90%; padding: 4px; font-size: 0.65rem; text-align: center; border-color: #ea580c; color:#fff;">RenderParagraph</div>
+                </div>
+            </div>
+
+            <!-- Console Log -->
+            <div style="width: 100%; margin-top: 15px;">
+                <div id="flConsole" style="background: #0f172a; border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-family: var(--font-mono); font-size: 0.75rem; color: #38bdf8; height: 80px; overflow-y: auto; text-align: left; line-height: 1.4;">
+                    <div>[Flutter Engine] Trees synced and idle. Ready to increment.</div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const btnInc = document.getElementById("btnFlIncrement");
+    const countVal = document.getElementById("flCountVal");
+    const flConsole = document.getElementById("flConsole");
+
+    const wt3 = document.getElementById("wtNode3");
+    const et3 = document.getElementById("etNode3");
+    const rt3 = document.getElementById("rtNode3");
+
+    let count = 0;
+
+    function log(msg, color = "#38bdf8") {
+        const div = document.createElement("div");
+        div.style.color = color;
+        div.textContent = msg;
+        flConsole.appendChild(div);
+        flConsole.scrollTop = flConsole.scrollHeight;
+    }
+
+    btnInc.onclick = () => {
+        count++;
+        countVal.textContent = count;
+        wt3.textContent = `Text("${count}")`;
+        
+        // Phase 1: Mark widget dirty
+        wt3.className = "node-box active-cyan";
+        log(`[1. WIDGET TREE] state change -> Text widget config updated to Text("${count}")`, "var(--accent-cyan)");
+
+        // Phase 2: Diffing elements
+        setTimeout(() => {
+            et3.className = "node-box active-green";
+            log(`[2. ELEMENT TREE] StatefulElement diffs tree. LeafElement detected dirty config. Updates widget binding reference.`, "var(--accent-green)");
+        }, 300);
+
+        // Phase 3: Paint/layout render objects
+        setTimeout(() => {
+            rt3.className = "node-box active-orange";
+            log(`[3. RENDER TREE] RenderParagraph layout boundary marked dirty. Re-evaluating constraints and repainting frame.`, "var(--accent-orange)");
+        }, 600);
+
+        // Sync complete
+        setTimeout(() => {
+            wt3.className = "node-box";
+            wt3.style.borderColor = "#02569B";
+            et3.className = "node-box";
+            et3.style.borderColor = "#059669";
+            rt3.className = "node-box";
+            rt3.style.borderColor = "#ea580c";
+            log(`[FLUTTER SYSTEM] Re-draw complete. Trees are synchronized in-memory.`, "#10b981");
+        }, 1200);
+    };
+}
+
 // ==========================================================================
 function bootstrap() {
     initTheme();
