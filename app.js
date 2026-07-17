@@ -678,6 +678,7 @@ function renderChecklist() {
             x: paddingX,
             val: 0,
             label: "12:00 AM",
+            tooltipLabel: "12:00 AM (Start of Day)",
             desc: "Start of Day",
             isBaseline: true
         });
@@ -689,6 +690,10 @@ function renderChecklist() {
                 const dateObj = new Date(t.completedAt);
                 hourFraction = dateObj.getHours() + (dateObj.getMinutes() / 60);
                 formattedTime = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            } else if (t.status === "Completed") {
+                // Graceful fallback for pre-existing completed tasks loaded from local storage
+                hourFraction = 9.5; 
+                formattedTime = "09:30 AM (Est.)";
             }
             
             const x = paddingX + (hourFraction / 24) * availW;
@@ -696,6 +701,7 @@ function renderChecklist() {
                 x,
                 val: index + 1,
                 label: formattedTime,
+                tooltipLabel: formattedTime + " Today",
                 desc: t.title,
                 isBaseline: false
             });
@@ -707,6 +713,7 @@ function renderChecklist() {
             x: paddingX + availW,
             val: totalToday,
             label: "11:59 PM",
+            tooltipLabel: "11:59 PM (End of Day)",
             desc: "End of Day",
             isBaseline: true
         });
@@ -770,7 +777,22 @@ function renderChecklist() {
         for (let i = 0; i < graphLabels.length; i++) {
             const x = paddingX + (i / (graphLabels.length - 1)) * availW;
             const y = svgH - (graphValues[i] / maxVal) * (svgH - 40) - 20;
-            points.push({ x, y, val: graphValues[i], label: graphLabels[i], desc: "Tasks Completed", isBaseline: false });
+            
+            // Generate detailed date strings for tooltips
+            let tooltipLabel = graphLabels[i];
+            if (state.trackerGraphTab === "Weekly") {
+                const d = new Date(now);
+                d.setDate(now.getDate() - (graphLabels.length - 1 - i));
+                tooltipLabel = d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            } else if (state.trackerGraphTab === "Monthly") {
+                const d = new Date(now);
+                d.setMonth(now.getMonth() - (graphLabels.length - 1 - i));
+                tooltipLabel = d.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+            } else if (state.trackerGraphTab === "Yearly") {
+                tooltipLabel = `Year ${graphLabels[i]}`;
+            }
+
+            points.push({ x, y, val: graphValues[i], label: graphLabels[i], tooltipLabel, desc: "Tasks Completed", isBaseline: false });
         }
     }
 
@@ -909,8 +931,8 @@ function renderChecklist() {
             ` : "";
 
             tooltipEl.innerHTML = `
-                <div style="color:var(--text-muted); font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Timeframe</div>
-                <div style="color:var(--text-primary); font-size:0.85rem; margin-bottom:6px;">${pt.label}</div>
+                <div style="color:var(--text-muted); font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Date/Time</div>
+                <div style="color:var(--text-primary); font-size:0.85rem; margin-bottom:6px;">${pt.tooltipLabel || pt.label}</div>
                 ${taskDetail}
                 <div style="height:1px; background:var(--border-light); margin-bottom:6px;"></div>
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
