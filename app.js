@@ -33,12 +33,28 @@ let state = {
 // Initialize default tasks if empty
 if (state.trackerTasks === null) {
     state.trackerTasks = [
-        { id: "task_1", title: "Define Functional & Non-Functional Requirements", desc: "List core features and SLA constraints.", category: "Foundations", priority: "High", status: "Completed", dueDate: "2026-07-17" },
+        { id: "task_1", title: "Define Functional & Non-Functional Requirements", desc: "List core features and SLA constraints.", category: "Foundations", priority: "High", status: "Completed", dueDate: "2026-07-17", completedAt: "2026-07-17T09:30:00.000Z" },
         { id: "task_2", title: "Design High-Level Schema & Choose Database", desc: "Map tables/collections. Compare PostgreSQL vs MongoDB.", category: "Database", priority: "High", status: "In Progress", dueDate: "2026-07-20" },
         { id: "task_3", title: "Configure CDN & Redis Cache Aside Routing", desc: "Set cache TTL policies and static edge delivery.", category: "Caching", priority: "Medium", status: "To Do", dueDate: "2026-07-24" },
         { id: "task_4", title: "Implement JWT Sessions & TLS Encryption", desc: "Verify secure token payload and transport boundaries.", category: "Security", priority: "Low", status: "To Do", dueDate: "2026-07-28" }
     ];
     localStorage.setItem("sysnotes_tracker_tasks", JSON.stringify(state.trackerTasks));
+}
+
+// Migration: Ensure completed tasks have completedAt timestamp for graph plotting
+if (state.trackerTasks && Array.isArray(state.trackerTasks)) {
+    let migrated = false;
+    state.trackerTasks.forEach(t => {
+        if (t.status === "Completed" && !t.completedAt) {
+            // Set mock completion timestamp matching due date or current date
+            const dateStr = t.dueDate || new Date().toISOString().split('T')[0];
+            t.completedAt = `${dateStr}T09:30:00.000Z`;
+            migrated = true;
+        }
+    });
+    if (migrated) {
+        localStorage.setItem("sysnotes_tracker_tasks", JSON.stringify(state.trackerTasks));
+    }
 }
 
 // Cached lookup arrays from lessons.js
@@ -684,7 +700,7 @@ function renderChecklist() {
                     formattedTime = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
                 } else if (t.status === "Completed") {
                     // Graceful fallback for pre-existing completed tasks loaded from local storage
-                    formattedTime = "09:30 AM (Est.)";
+                    formattedTime = "09:30 AM";
                 }
                 
                 graphLabels.push(formattedTime);
