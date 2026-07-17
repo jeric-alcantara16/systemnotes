@@ -837,6 +837,57 @@ function renderChecklist() {
     `;
     checklistWrapper.appendChild(analyticsRow);
 
+    // Setup interactive custom tooltips on hover
+    let tooltipEl = document.getElementById("graphTooltip");
+    if (!tooltipEl) {
+        tooltipEl = document.createElement("div");
+        tooltipEl.id = "graphTooltip";
+        tooltipEl.style.cssText = "position:absolute; display:none; background:var(--surface); border:1.5px solid var(--accent-cyan); color:var(--text-primary); padding:10px 14px; border-radius:8px; font-size:0.8rem; pointer-events:none; box-shadow:var(--shadow-lg); z-index:10000; font-family:var(--font-sans); font-weight:700; transition:opacity 0.15s ease-out; opacity:0; line-height:1.4; min-width:160px; pointer-events:none;";
+        document.body.appendChild(tooltipEl);
+    }
+
+    analyticsRow.querySelectorAll("circle").forEach((circle, idx) => {
+        circle.style.cursor = "pointer";
+        circle.style.transition = "r 0.2s ease, fill 0.2s ease";
+        
+        const pt = points[idx];
+        if (!pt) return;
+
+        circle.onmouseenter = (e) => {
+            circle.setAttribute("r", "8");
+            circle.setAttribute("fill", "var(--accent-green)");
+            
+            tooltipEl.innerHTML = `
+                <div style="color:var(--text-muted); font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Timeframe</div>
+                <div style="color:var(--text-primary); font-size:0.85rem; margin-bottom:6px;">${pt.label}</div>
+                <div style="height:1px; background:var(--border-light); margin-bottom:6px;"></div>
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                    <span style="color:var(--text-secondary); font-size:0.75rem;">Completions:</span>
+                    <span style="color:var(--accent-green); font-size:0.9rem; font-weight:800;">${pt.val}</span>
+                </div>
+            `;
+            tooltipEl.style.display = "block";
+            tooltipEl.offsetHeight; // trigger reflow
+            tooltipEl.style.opacity = "1";
+        };
+
+        circle.onmousemove = (e) => {
+            tooltipEl.style.left = (e.pageX + 15) + "px";
+            tooltipEl.style.top = (e.pageY - 20) + "px";
+        };
+
+        circle.onmouseleave = () => {
+            circle.setAttribute("r", "5");
+            circle.setAttribute("fill", "var(--accent-cyan)");
+            tooltipEl.style.opacity = "0";
+            setTimeout(() => {
+                if (tooltipEl.style.opacity === "0") {
+                    tooltipEl.style.display = "none";
+                }
+            }, 150);
+        };
+    });
+
     // Event listener for tab controls
     analyticsRow.querySelectorAll(".graph-tab-btn").forEach(btn => {
         btn.onclick = () => {
