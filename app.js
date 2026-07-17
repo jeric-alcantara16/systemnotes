@@ -16,7 +16,7 @@ let state = {
     currentMode: "system-design", // "system-design" or "languages"
     activeChapterId: null, // ID of the currently active chapter (null = welcome/glossary/checklist)
     activeTab: "learn", // "learn", "visualizer", "quiz"
-    activeChapterPageIndex: 0, // Current page index inside the active chapter
+    activeGlobalPageIndex: 0, // Current global page index inside the active mode
     completedItems: safeJSONParse("sysnotes_completed"),
     checklistState: safeJSONParse("sysnotes_checklist"),
     systems: safeJSONParse("sysnotes_systems", []),
@@ -43,6 +43,7 @@ if (state.trackerTasks === null) {
 
 // Cached lookup arrays from lessons.js
 let currentLessonsList = [];
+let globalPages = [];
 
 // ==========================================================================
 // DOM ELEMENT REFERENCES
@@ -109,6 +110,22 @@ themeToggleBtn.addEventListener("click", () => {
 // ==========================================================================
 function updateActiveModeData() {
     currentLessonsList = state.currentMode === "system-design" ? SYSTEM_DESIGN_LESSONS : PROGRAMMING_LANGUAGE_LESSONS;
+    
+    // Rebuild globalPages flat list for the active mode
+    globalPages = [];
+    currentLessonsList.forEach(lesson => {
+        const pages = lesson.content.split('<!-- pagebreak -->');
+        pages.forEach((pageContent, idx) => {
+            globalPages.push({
+                lessonId: lesson.id,
+                pageIndex: idx,
+                content: pageContent,
+                lessonTitle: lesson.title,
+                visualizer: lesson.visualizer,
+                quiz: lesson.quiz
+            });
+        });
+    });
 }
 
 function buildSidebarNav(searchQuery = "") {
@@ -148,7 +165,10 @@ function buildSidebarNav(searchQuery = "") {
                 <span>${lesson.title}</span>
             `;
             item.addEventListener("click", () => {
-                showChapter(lesson.id);
+                const firstPageIdx = globalPages.findIndex(p => p.lessonId === lesson.id);
+                if (firstPageIdx !== -1) {
+                    showPage(firstPageIdx);
+                }
                 closeSidebarMobile();
             });
             sidebarNav.appendChild(item);
@@ -192,68 +212,42 @@ function showView(viewName) {
 }
 
 function updateLessonNavigation() {
-    const chapterId = state.activeChapterId;
-    if (!chapterId) return;
-
-    const lesson = currentLessonsList.find(l => l.id === chapterId);
-    if (!lesson) return;
-
-    const pages = lesson.content.split('<!-- pagebreak -->');
-    const currentIndex = currentLessonsList.findIndex(l => l.id === chapterId);
-    const pageIndex = state.activeChapterPageIndex;
+    const pageIndex = state.activeGlobalPageIndex;
     const pageIndicator = document.getElementById("lessonPageIndicator");
+    const pageObj = globalPages[pageIndex];
+    if (!pageObj) return;
 
-    if (state.activeTab === "learn" && pages.length > 1) {
+    const currentIndex = currentLessonsList.findIndex(l => l.id === pageObj.lessonId);
+
+    if (state.activeTab === "learn" && globalPages.length > 1) {
         // Show page indicator
         pageIndicator.style.display = "flex";
-        pageIndicator.textContent = `Page ${pageIndex + 1} of ${pages.length}`;
+        pageIndicator.textContent = `Page ${pageIndex + 1} of ${globalPages.length}`;
 
         // Previous button
         if (pageIndex > 0) {
             prevChapterBtn.classList.remove("disabled");
             prevChapterBtn.querySelector("span").textContent = "Previous Page";
             prevChapterBtn.onclick = () => {
-                state.activeChapterPageIndex--;
-                showChapter(chapterId, state.activeChapterPageIndex);
+                showPage(pageIndex - 1);
             };
         } else {
-            // Act as Previous Chapter
-            if (currentIndex > 0) {
-                prevChapterBtn.classList.remove("disabled");
-                prevChapterBtn.querySelector("span").textContent = "Previous Chapter";
-                prevChapterBtn.onclick = () => {
-                    const prevLesson = currentLessonsList[currentIndex - 1];
-                    const prevPages = prevLesson.content.split('<!-- pagebreak -->');
-                    showChapter(prevLesson.id, prevPages.length - 1);
-                };
-            } else {
-                prevChapterBtn.classList.add("disabled");
-                prevChapterBtn.querySelector("span").textContent = "Previous Chapter";
-                prevChapterBtn.onclick = null;
-            }
+            prevChapterBtn.classList.add("disabled");
+            prevChapterBtn.querySelector("span").textContent = "Previous Page";
+            prevChapterBtn.onclick = null;
         }
 
         // Next button
-        if (pageIndex < pages.length - 1) {
+        if (pageIndex < globalPages.length - 1) {
             nextChapterBtn.classList.remove("disabled");
             nextChapterBtn.querySelector("span").textContent = "Next Page";
             nextChapterBtn.onclick = () => {
-                state.activeChapterPageIndex++;
-                showChapter(chapterId, state.activeChapterPageIndex);
+                showPage(pageIndex + 1);
             };
         } else {
-            // Act as Next Chapter
-            if (currentIndex < currentLessonsList.length - 1) {
-                nextChapterBtn.classList.remove("disabled");
-                nextChapterBtn.querySelector("span").textContent = "Next Chapter";
-                nextChapterBtn.onclick = () => {
-                    showChapter(currentLessonsList[currentIndex + 1].id, 0);
-                };
-            } else {
-                nextChapterBtn.classList.add("disabled");
-                nextChapterBtn.querySelector("span").textContent = "Next Chapter";
-                nextChapterBtn.onclick = null;
-            }
+            nextChapterBtn.classList.add("disabled");
+            nextChapterBtn.querySelector("span").textContent = "Next Page";
+            nextChapterBtn.onclick = null;
         }
     } else {
         // Hide page indicator
@@ -264,7 +258,9 @@ function updateLessonNavigation() {
             prevChapterBtn.classList.remove("disabled");
             prevChapterBtn.querySelector("span").textContent = "Previous Chapter";
             prevChapterBtn.onclick = () => {
-                showChapter(currentLessonsList[currentIndex - 1].id, 0);
+                const prevLesson = currentLessonsList[currentIndex - 1];
+                const prevFirstPageIdx = globalPages.findIndex(p => p.lessonId === prevLesson.id);
+                showPage(prevFirstPageIdx);
             };
         } else {
             prevChapterBtn.classList.add("disabled");
@@ -277,7 +273,9 @@ function updateLessonNavigation() {
             nextChapterBtn.classList.remove("disabled");
             nextChapterBtn.querySelector("span").textContent = "Next Chapter";
             nextChapterBtn.onclick = () => {
-                showChapter(currentLessonsList[currentIndex + 1].id, 0);
+                const nextLesson = currentLessonsList[currentIndex + 1];
+                const nextFirstPageIdx = globalPages.findIndex(p => p.lessonId === nextLesson.id);
+                showPage(nextFirstPageIdx);
             };
         } else {
             nextChapterBtn.classList.add("disabled");
@@ -287,24 +285,21 @@ function updateLessonNavigation() {
     }
 }
 
-function showChapter(chapterId, pageIndex = null) {
-    state.activeChapterId = chapterId;
+function showPage(globalPageIndex) {
+    state.activeGlobalPageIndex = globalPageIndex;
     updateActiveModeData();
-    const lesson = currentLessonsList.find(l => l.id === chapterId);
-    if (!lesson) return;
+    
+    const pageObj = globalPages[globalPageIndex];
+    if (!pageObj) return;
 
-    if (pageIndex === null) {
-        state.activeChapterPageIndex = 0;
-    } else {
-        state.activeChapterPageIndex = pageIndex;
-    }
-
+    state.activeChapterId = pageObj.lessonId;
+    
     showView("lesson");
 
     // Highlight active link in sidebar
     document.querySelectorAll(".nav-item").forEach(item => {
         const spanText = item.querySelector("span").textContent;
-        if (spanText === lesson.title) {
+        if (spanText === pageObj.lessonTitle) {
             item.classList.add("active");
         } else {
             item.classList.remove("active");
@@ -312,15 +307,14 @@ function showChapter(chapterId, pageIndex = null) {
     });
 
     // Set Breadcrumbs
-    breadcrumbs.innerHTML = `<span>${state.currentMode === "system-design" ? "System Design" : "Languages"}</span> &nbsp;&raquo;&nbsp; <span>${lesson.title}</span>`;
+    breadcrumbs.innerHTML = `<span>${state.currentMode === "system-design" ? "System Design" : "Languages"}</span> &nbsp;&raquo;&nbsp; <span>${pageObj.lessonTitle}</span>`;
 
     // Render contents
-    const pages = lesson.content.split('<!-- pagebreak -->');
-    lessonBody.innerHTML = pages[state.activeChapterPageIndex] || lesson.content;
+    lessonBody.innerHTML = pageObj.content;
     
     // Configure Visualizer Tab visibility
     const tabVisualizerBtn = document.getElementById("tabVisualizerBtn");
-    if (lesson.visualizer) {
+    if (pageObj.visualizer) {
         tabVisualizerBtn.style.display = "flex";
     } else {
         tabVisualizerBtn.style.display = "none";
@@ -333,6 +327,7 @@ function showChapter(chapterId, pageIndex = null) {
     switchTab(state.activeTab);
 
     // Initialize/Render Quiz
+    const lesson = currentLessonsList.find(l => l.id === pageObj.lessonId);
     renderQuiz(lesson);
 
     // Update Navigation UI
@@ -340,6 +335,21 @@ function showChapter(chapterId, pageIndex = null) {
 
     // Scroll to top of article
     document.querySelector(".app-main").scrollTop = 0;
+}
+
+function showChapter(chapterId, pageIndex = null) {
+    updateActiveModeData();
+    const firstPageIdx = globalPages.findIndex(p => p.lessonId === chapterId);
+    if (firstPageIdx === -1) return;
+    
+    if (pageIndex !== null) {
+        const targetIdx = globalPages.findIndex(p => p.lessonId === chapterId && p.pageIndex === pageIndex);
+        if (targetIdx !== -1) {
+            showPage(targetIdx);
+            return;
+        }
+    }
+    showPage(firstPageIdx);
 }
 
 // Tab Switching logic
@@ -385,6 +395,7 @@ tabButtons.forEach(btn => {
 // Mode Switching (System Design vs Programming Languages)
 function setMode(mode) {
     state.currentMode = mode;
+    state.activeGlobalPageIndex = 0;
     state.activeChapterId = null;
     
     if (mode === "system-design") {
@@ -395,6 +406,7 @@ function setMode(mode) {
         btnLanguages.classList.add("active");
     }
 
+    updateActiveModeData();
     buildSidebarNav();
     showView("welcome");
     updateGlobalProgress();
@@ -423,8 +435,8 @@ clearSearchBtn.addEventListener("click", () => {
 // Navigation shortcuts on home screen
 startCourseBtn.addEventListener("click", () => {
     updateActiveModeData();
-    if (currentLessonsList.length > 0) {
-        showChapter(currentLessonsList[0].id);
+    if (globalPages.length > 0) {
+        showPage(0);
     }
 });
 
