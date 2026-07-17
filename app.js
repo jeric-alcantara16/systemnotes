@@ -657,9 +657,6 @@ function renderChecklist() {
     const availW = svgW - paddingX - paddingRight;
 
     if (state.trackerGraphTab === "Daily") {
-        // Equal grid ticks for X-axis labels
-        graphLabels = ["12 AM", "4 AM", "8 AM", "12 PM", "4 PM", "8 PM", "12 AM"];
-        
         const todayTasks = state.trackerTasks.filter(t => {
             if (t.status !== "Completed") return false;
             const compDateStr = t.completedAt ? getLocalDateStr(t.completedAt) : (t.dueDate || "");
@@ -673,58 +670,42 @@ function renderChecklist() {
             return timeA - timeB;
         });
 
-        // Baseline point at midnight
-        points.push({
-            x: paddingX,
-            val: 0,
-            label: "12:00 AM",
-            tooltipLabel: "12:00 AM (Start of Day)",
-            desc: "Start of Day",
-            isBaseline: true
-        });
-
-        todayTasks.forEach((t, index) => {
-            let hourFraction = 12; // default noon
-            let formattedTime = "12:00 PM";
-            if (t.completedAt) {
-                const dateObj = new Date(t.completedAt);
-                hourFraction = dateObj.getHours() + (dateObj.getMinutes() / 60);
-                formattedTime = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-            } else if (t.status === "Completed") {
-                // Graceful fallback for pre-existing completed tasks loaded from local storage
-                hourFraction = 9.5; 
-                formattedTime = "09:30 AM (Est.)";
-            }
-            
-            const x = paddingX + (hourFraction / 24) * availW;
-            points.push({
-                x,
-                val: index + 1,
-                label: formattedTime,
-                tooltipLabel: formattedTime + " Today",
-                desc: t.title,
-                isBaseline: false
+        if (todayTasks.length === 0) {
+            graphLabels = ["No completions"];
+            graphValues = [0];
+            const x = paddingX + (availW / 2);
+            const y = svgH - 20;
+            points.push({ x, y, val: 0, label: "No completions", tooltipLabel: "No completions today", desc: "No completed tasks today", isBaseline: false });
+        } else {
+            todayTasks.forEach((t, index) => {
+                let formattedTime = "12:00 PM";
+                if (t.completedAt) {
+                    const dateObj = new Date(t.completedAt);
+                    formattedTime = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                } else if (t.status === "Completed") {
+                    // Graceful fallback for pre-existing completed tasks loaded from local storage
+                    formattedTime = "09:30 AM (Est.)";
+                }
+                
+                graphLabels.push(formattedTime);
+                graphValues.push(index + 1);
             });
-        });
 
-        // End-of-day carrying point
-        const totalToday = todayTasks.length;
-        points.push({
-            x: paddingX + availW,
-            val: totalToday,
-            label: "11:59 PM",
-            tooltipLabel: "11:59 PM (End of Day)",
-            desc: "End of Day",
-            isBaseline: true
-        });
-
-        graphValues = points.map(p => p.val);
-        maxVal = Math.max(...graphValues, 4);
-
-        // Adjust Y coordinates
-        points.forEach(pt => {
-            pt.y = svgH - (pt.val / maxVal) * (svgH - 40) - 20;
-        });
+            maxVal = Math.max(...graphValues, 4);
+            for (let i = 0; i < graphLabels.length; i++) {
+                const x = graphLabels.length > 1 ? paddingX + (i / (graphLabels.length - 1)) * availW : paddingX + (availW / 2);
+                const y = svgH - (graphValues[i] / maxVal) * (svgH - 40) - 20;
+                points.push({
+                    x,
+                    y,
+                    val: graphValues[i],
+                    label: graphLabels[i],
+                    tooltipLabel: graphLabels[i] + " Today",
+                    desc: todayTasks[i] ? todayTasks[i].title : "Task Completed",
+                    isBaseline: false
+                });
+            }
+        }
 
     } else {
         // Weekly, Monthly, Yearly
@@ -821,22 +802,13 @@ function renderChecklist() {
         `;
     }
 
-    // Draw X Axis labels (evenly spaced for Daily timeline)
+    // Draw X Axis labels
     let xAxisLabelsHtml = "";
-    if (state.trackerGraphTab === "Daily") {
-        graphLabels.forEach((label, i) => {
-            const x = paddingX + (i / (graphLabels.length - 1)) * availW;
-            xAxisLabelsHtml += `
-                <text x="${x}" y="${svgH + 18}" text-anchor="middle" fill="var(--text-secondary)" style="font-size:0.75rem; font-weight:800;">${label}</text>
-            `;
-        });
-    } else {
-        points.forEach(pt => {
-            xAxisLabelsHtml += `
-                <text x="${pt.x}" y="${svgH + 18}" text-anchor="middle" fill="var(--text-secondary)" style="font-size:0.75rem; font-weight:800;">${pt.label}</text>
-            `;
-        });
-    }
+    points.forEach(pt => {
+        xAxisLabelsHtml += `
+            <text x="${pt.x}" y="${svgH + 18}" text-anchor="middle" fill="var(--text-secondary)" style="font-size:0.75rem; font-weight:800;">${pt.label}</text>
+        `;
+    });
 
     // Filter baseline markers (like midnight padding) from displaying as physical points
     const renderedPoints = points.filter(pt => !pt.isBaseline);
