@@ -19,38 +19,68 @@ const SYSTEM_DESIGN_LESSONS = [
                 Never start proposing solutions immediately. A great system designer always clarifies requirements, analyzes constraints, and estimates scale first.
             </div>
 
-            <h2>The Step-by-Step Design Framework</h2>
-            <p>When faced with a system design problem (e.g., in an interview or project planning), follow this structured 4-step framework:</p>
-            
-            <h3>Step 1: Understand the Requirements (Functional & Non-Functional)</h3>
+            <h2>Requirements Elicitation: Functional vs. Non-Functional</h2>
+            <p>Requirements are the bedrock of any design. They are divided into two categories:</p>
             <ul>
-                <li><em>Functional Requirements:</em> What features must the system support? (e.g., "Users should be able to post photos", "Users can follow other users").</li>
-                <li><em>Non-Functional Requirements:</em> What are the system's operational parameters? (e.g., High availability, low latency, consistency vs. availability, scale expectations).</li>
+                <li><strong>Functional Requirements:</strong> Define the behaviors and features of the system. For a social network, they include: "Users can upload photos," "Users can add friends," and "Users can view a timeline."</li>
+                <li><strong>Non-Functional Requirements (NFRs):</strong> Define the quality attributes and operational constraints of the system. These are crucial because they dictate the architectural choices. Typical NFRs include:
+                    <ul>
+                        <li><strong>Availability:</strong> The fraction of time the system remains operational (e.g., 99.99% availability).</li>
+                        <li><strong>Latency:</strong> The response time of services (e.g., successful page loads in < 200ms at p99).</li>
+                        <li><strong>Consistency vs. Availability:</strong> Determining if the system favors returning accurate data immediately (CP) or remaining responsive even if data is slightly stale (AP).</li>
+                        <li><strong>Scalability:</strong> The system's ability to handle growing workloads by adding resources.</li>
+                    </ul>
+                </li>
             </ul>
 
             <!-- pagebreak -->
-            <h3>Step 2: Estimate Scale & Resource Constraints</h3>
+            <h2>Step-by-Step Back-of-the-Envelope Estimation (Mathematics)</h2>
+            <p>Back-of-the-envelope calculations estimate storage, memory, QPS (Queries Per Second), and network bandwidth before drafting database schemas. Let's run a complete estimation for a photo-sharing system:</p>
+
+            <h3>1. Base Scale Constraints:</h3>
             <ul>
-                <li>Estimate DAU (Daily Active Users), Read/Write ratios (read-heavy vs write-heavy).</li>
-                <li>Calculate network bandwidth, storage capacity (e.g., 500 million photos/day * 200KB = 100TB/day), and memory cache requirements.</li>
+                <li>Daily Active Users (DAU): 100 Million</li>
+                <li>Average posts per user per day: 2 photos</li>
+                <li>Average size of a photo: 250 KB</li>
             </ul>
 
-            <!-- pagebreak -->
-            <h3>Step 3: Define API & Data Models</h3>
-            <ul>
-                <li>Create clean API endpoints representing the contract between client and server (e.g., REST endpoints like <code>POST /v1/tweets</code>).</li>
-                <li>Select DB schemas, determining whether Relational (SQL) or Non-Relational (NoSQL) is appropriate.</li>
-            </ul>
+            <h3>2. QPS Calculations:</h3>
+            <p>First, calculate total daily write requests: <code>100 Million DAU * 2 posts/day = 200 Million writes/day</code>.</p>
+            <p>Convert daily writes to writes per second:</p>
+            <pre><code>Writes QPS = 200,000,000 requests / 86,400 seconds ≈ 2,315 writes/sec</code></pre>
+            <p>If we assume a 10:1 read-to-write ratio (10 reads for every write), we get:</p>
+            <pre><code>Reads QPS = 2,315 * 10 = 23,150 reads/sec</code></pre>
+            <p>Peak QPS is estimated as 2x average QPS: <code>Peak Reads QPS = 23,150 * 2 ≈ 46,300 reads/sec</code>.</p>
 
             <!-- pagebreak -->
-            <h3>Step 4: High-Level Design (HLD) & Deep Dive</h3>
+            <h3>3. Storage and Bandwidth Calculations:</h3>
+            <p>Calculate daily storage footprint for raw media:</p>
+            <pre><code>Daily Write Storage = 200 Million posts * 250 KB = 50,000,000,000 KB = 50 TB/day</code></pre>
+            <p>To store these photos for 5 years, total storage required is:</p>
+            <pre><code>5-Year Storage = 50 TB/day * 365 days/year * 5 years ≈ 91.25 PB</code></pre>
+            <p>Calculate network bandwidth requirements for writes (ingress):</p>
+            <pre><code>Ingress Bandwidth = (200 Million * 250 KB) / 86,400 sec ≈ 578 MB/sec = 4.62 Gbps</code></pre>
+            <p>And read bandwidth (egress) assuming 10:1 read-to-write ratio:</p>
+            <pre><code>Egress Bandwidth = 578 MB/sec * 10 = 5.78 GB/sec = 46.24 Gbps</code></pre>
+
+            <!-- pagebreak -->
+            <h2>API Design & Schema Modeling</h2>
+            <p>Once constraints are defined, outline the API interface contract and database schemas. For a typical RESTful API design, define operations clearly using standard HTTP verbs:</p>
             <ul>
-                <li>Sketch the overall components (Clients, Load Balancers, Web Servers, Database, Cache, Queue).</li>
-                <li>Deep dive into bottlenecks (e.g., sharding databases, caching hot assets, handling scale spikes with queues).</li>
+                <li><code>POST /v1/users/{userId}/photos</code> - Upload a new photo. Body: JSON containing photo metadata and image URL. Returns: Photo ID.</li>
+                <li><code>GET /v1/photos/{photoId}</code> - Retrieve photo metadata. Returns: JSON metadata.</li>
+                <li><code>DELETE /v1/photos/{photoId}</code> - Delete a photo. Returns: HTTP 200/204.</li>
+            </ul>
+
+            <h3>Selecting the Right Database Category</h3>
+            <ul>
+                <li><strong>Relational DBs (SQL):</strong> Best when data requires strict ACID transactions and relational links. Ideal for billing, accounting, and user authentication tables. *Examples: PostgreSQL, MySQL.*</li>
+                <li><strong>Non-Relational DBs (NoSQL):</strong> Best for elastic scaling, high throughput, and semi-structured payloads. Essential for caching, logs, and document-based metadata. *Examples: DynamoDB, MongoDB.*</li>
             </ul>
 
             <!-- pagebreak -->
             <h2>Latency Numbers Every Programmer Should Know</h2>
+            <p>To design efficient distributed systems, understanding hardware execution boundaries is essential. CPU speeds are nanoseconds, SSD reads are milliseconds, and WAN network traffic takes tens of milliseconds:</p>
             <table>
                 <thead>
                     <tr>
@@ -66,7 +96,12 @@ const SYSTEM_DESIGN_LESSONS = [
                         <td>0.5 seconds</td>
                     </tr>
                     <tr>
-                        <td>Main Memory Reference</td>
+                        <td>L2 Cache Reference</td>
+                        <td>7 ns</td>
+                        <td>7 seconds</td>
+                    </tr>
+                    <tr>
+                        <td>Main Memory Reference (RAM)</td>
                         <td>100 ns</td>
                         <td>100 seconds (1.6 mins)</td>
                     </tr>
@@ -76,9 +111,9 @@ const SYSTEM_DESIGN_LESSONS = [
                         <td>11.5 days</td>
                     </tr>
                     <tr>
-                        <td>Read 1 MB sequentially from Disk</td>
-                        <td>20,000,000 ns (20 ms)</td>
-                        <td>7.5 months</td>
+                        <td>Disk Seek (HDD)</td>
+                        <td>10,000,000 ns (10 ms)</td>
+                        <td>3.8 months</td>
                     </tr>
                     <tr>
                         <td>Send packet USA to Europe & back</td>
@@ -87,19 +122,9 @@ const SYSTEM_DESIGN_LESSONS = [
                     </tr>
                 </tbody>
             </table>
-        `,
-        visualizer: {
-            type: "flowchart",
-            data: {
-                steps: [
-                    { name: "Clarify Requirements", desc: "Define functional & non-functional requirements" },
-                    { name: "Back-of-Envelope Math", desc: "Estimate traffic, storage, and network needs" },
-                    { name: "API Design & Schema", desc: "Draft API endpoints and database tables" },
-                    { name: "High-Level Architecture", desc: "Sketch core services, load balancers, databases" },
-                    { name: "Address Bottlenecks", desc: "Add caching, message queues, and replicas" }
-                ]
-            }
-        },
+            <p><strong>Design Implication:</strong> Disk access is thousands of times slower than memory access. Therefore, scaling database query performance requires aggressive caching strategies (in-memory caching) to avoid hitting disk boundaries.</p>
+                `,
+        visualizer: {'type': 'flowchart', 'data': {'steps': [{'name': 'Clarify Requirements', 'desc': 'Define functional & non-functional requirements'}, {'name': 'Back-of-Envelope Math', 'desc': 'Estimate traffic, storage, and network needs'}, {'name': 'API Design & Schema', 'desc': 'Draft API endpoints and database tables'}, {'name': 'High-Level Architecture', 'desc': 'Sketch core services, load balancers, databases'}, {'name': 'Address Bottlenecks', 'desc': 'Add caching, message queues, and replicas'}]}},
         quiz: [
             {
                 question: "What is the primary difference between functional and non-functional requirements?",
@@ -107,7 +132,7 @@ const SYSTEM_DESIGN_LESSONS = [
                     "Functional requirements specify what the system should do; non-functional requirements specify how the system behaves under constraints.",
                     "Functional requirements focus on scaling; non-functional requirements focus on features.",
                     "Functional requirements deal with security; non-functional requirements deal with databases.",
-                    "There is no difference; they are interchangeable."
+                    "There is no difference; they are interchangeable.",
                 ],
                 answer: 0,
                 explanation: "Functional requirements describe core system actions/features (e.g., user login, sending messages). Non-functional requirements specify operational qualities (e.g., 99.99% availability, latency < 100ms)."
@@ -118,11 +143,11 @@ const SYSTEM_DESIGN_LESSONS = [
                     "Checking code coverage percentages",
                     "Calculating daily write storage volume based on DAU and average payload size",
                     "Counting the number of Git branches",
-                    "Measuring CPU clock speed directly"
+                    "Measuring CPU clock speed directly",
                 ],
                 answer: 1,
                 explanation: "Back-of-the-envelope calculations estimate resources like network bandwidth, database storage, and cache memory required to support target traffic rates before architectural design begins."
-            }
+            },
         ]
     },
     {
@@ -151,31 +176,29 @@ const SYSTEM_DESIGN_LESSONS = [
       +-------------+-------------+
       |                           |
 [Auth Service]            [Payment Service]
- (Auth DB)                  (Payment DB)
+  (Auth DB)                  (Payment DB)
             </div>
 
             <div class="alert alert-warning">
-                <div class="alert-title">Microservice Trade-offs</div>
-                Microservices solve organizational scaling issues but introduce complex distributed system problems: network partition failures, data synchronization overhead, and deployment complexity (needs strong CI/CD and observability).
+                <div class="alert-title">Microservice Trade-offs & Strangler Fig Pattern</div>
+                Migrating from a monolith to microservices should be done gradually. The **Strangler Fig Pattern** suggests replacing monolithic functionality step-by-step by placing an API Gateway in front, routing new or updated endpoints to microservices while routing the rest to the legacy monolith, eventually strangling the monolith out of existence.
             </div>
 
             <!-- pagebreak -->
             <h2>3. Serverless Architecture</h2>
             <p>Serverless (FaaS - Function as a Service) allows developers to write and run code without provisioning or managing underlying servers. Code runs in stateless ephemeral containers triggered by events (e.g., AWS Lambda, GCP Cloud Functions).</p>
             <ul>
-                <li><strong>Scale-to-Zero:</strong> Pay only for resources consumed during function execution.</li>
-                <li><strong>Cold Starts:</strong> The latency spike that occurs when a serverless function is invoked after being idle, as the platform provisions new infrastructure.</li>
+                <li><strong>Scale-to-Zero:</strong> Pay only for resources consumed during function execution. No active request means no active costs.</li>
+                <li><strong>Cold Starts:</strong> The latency spike that occurs when a serverless function is invoked after being idle, as the platform provisions new infrastructure containers.</li>
+                <li><strong>Vendor Lock-in:</strong> Tight integration with cloud provider services makes migration difficult.</li>
             </ul>
 
             <!-- pagebreak -->
             <h2>4. Event-Driven Architecture (EDA)</h2>
             <p>In EDA, services communicate by publishing and consuming state changes called <strong>events</strong>. Producers emit events to an event broker (e.g., Kafka, RabbitMQ) without knowing who the consumers are. Consumers subscribe to topics asynchronously.</p>
-        `,
-        visualizer: {
-            type: "monolith-vs-micro",
-            title: "Monolith vs Microservices Visualizer",
-            desc: "Toggle to see how database coupling changes between architecture patterns."
-        },
+            <p><strong>CQRS (Command Query Responsibility Segregation):</strong> Separates read and write operations. Writes (Commands) go to a transactional database, which emits events. A query processor reads these events to update a denormalized read-only search database (e.g. Elasticsearch) optimized for fast queries.</p>
+                `,
+        visualizer: {'type': 'monolith-vs-micro', 'title': 'Monolith vs Microservices Visualizer', 'desc': 'Toggle to see how database coupling changes between architecture patterns.'},
         quiz: [
             {
                 question: "What is a database architecture best practice when migrating from a Monolith to Microservices?",
@@ -183,7 +206,7 @@ const SYSTEM_DESIGN_LESSONS = [
                     "Keep a single global shared database for all services to read/write from directly.",
                     "Each microservice should manage and own its own private database, exposing data only via APIs.",
                     "Microservices should not use databases; they must keep state in memory.",
-                    "Duplicate the entire database for each service."
+                    "Duplicate the entire database for each service.",
                 ],
                 answer: 1,
                 explanation: "The 'Database per Service' pattern ensures services are loosely coupled. Directly sharing databases creates tight coupling, where a schema change in one service breaks other services."
@@ -194,11 +217,11 @@ const SYSTEM_DESIGN_LESSONS = [
                     "The system freezing during deployment",
                     "The latency delay when a function is invoked for the first time or after being idle, because a new container must be provisioned",
                     "Servers running in cold climates to save energy",
-                    "Running a query without indices"
+                    "Running a query without indices",
                 ],
                 answer: 1,
                 explanation: "Cold starts happen when a serverless function is called but no container is warm (active). The platform has to boot up a runtime environment, which introduces execution delay."
-            }
+            },
         ]
     },
     {
@@ -230,6 +253,13 @@ const SYSTEM_DESIGN_LESSONS = [
 | - total: Double     |
 +---------------------+
             </div>
+            <p><strong>Relationship Types:</strong>
+                <ul>
+                    <li><strong>Association:</strong> Basic relationship where one object calls another.</li>
+                    <li><strong>Aggregation (Empty Diamond):</strong> "Has-a" relationship where the child can exist independently of the parent (e.g., Department has Professors).</li>
+                    <li><strong>Composition (Solid Diamond):</strong> "Part-of" relationship where the child cannot exist without the parent (e.g., House has Rooms).</li>
+                </ul>
+            </p>
 
             <!-- pagebreak -->
             <h2>2. Sequence Diagram (Behavioral/Interaction)</h2>
@@ -244,6 +274,7 @@ Client       Gateway       AuthService      Database
   |             |<-- token -----|              |
   |<-- success -|               |              |
             </div>
+            <p>It consists of lifelines (vertical dashed lines), activation bars (representing execution focus), and horizontal arrows mapping synchronous/asynchronous calls.</p>
 
             <!-- pagebreak -->
             <h2>3. Activity Diagram (Workflow)</h2>
@@ -255,10 +286,11 @@ Client       Gateway       AuthService      Database
            -> [Yes] -> [Charge Payment] -> [Ship Order] -> (*)
            -> [No]  -> [Show Error] -> (*)
             </div>
+            <p>Features decision diamonds, fork bars (to split execution into parallel threads), and join bars (to merge parallel threads back into a single thread).</p>
 
             <!-- pagebreak -->
             <h2>4. Component Diagram (Implementation)</h2>
-            <p>Component diagrams depict how software components are wired together to form larger subsystems. They highlight structural dependencies.</p>
+            <p>Component diagrams depict how software components are wired together to form larger subsystems. They highlight structural dependencies and interface implementations.</p>
             <div class="uml-text-box">
 +------------------+          +-------------------+
 |  OrderController | --(API)--> |   InventoryService|
@@ -269,12 +301,8 @@ Client       Gateway       AuthService      Database
                                |   Database       |
                                +------------------+
             </div>
-        `,
-        visualizer: {
-            type: "sequence-anim",
-            title: "Sequence Diagram Flow Visualizer",
-            desc: "Hover or click to execute the API call and watch messages propagate across UML lifelines."
-        },
+                `,
+        visualizer: {'type': 'sequence-anim', 'title': 'Sequence Diagram Flow Visualizer', 'desc': 'Hover or click to execute the API call and watch messages propagate across UML lifelines.'},
         quiz: [
             {
                 question: "Which UML diagram is best suited for demonstrating the step-by-step chronological exchange of messages between objects?",
@@ -282,11 +310,11 @@ Client       Gateway       AuthService      Database
                     "Class Diagram",
                     "Component Diagram",
                     "Sequence Diagram",
-                    "Use Case Diagram"
+                    "Use Case Diagram",
                 ],
                 answer: 2,
                 explanation: "Sequence diagrams explicitly capture interactions over time, showing actors and components along with the chronological sequence of calls exchanged between them."
-            }
+            },
         ]
     },
     {
@@ -314,11 +342,12 @@ Client       Gateway       AuthService      Database
 |   +---------------+ (JSON/HTTPS) +------------------+        |
 |   |  Web App SPA  | -----------> |   Backend API    |        |
 |   +---------------+              +------------------+        |
-|                                     /            \\           |
+|                                     /            \           |
 |                                    v              v          |
 |                             +----------+    +----------+     |
 |                             | SQL DB   |    | Redis    |     |
 |                             +----------+    +----------+     |
+|                                                              |
 +--------------------------------------------------------------+
             </div>
 
@@ -332,12 +361,9 @@ Client       Gateway       AuthService      Database
             <!-- pagebreak -->
             <h2>Deployment Diagrams</h2>
             <p>Deployment diagrams show the physical configuration of run-time processing nodes and the software components that run on them. They specify cloud servers, regions, network bridges, subnets, and hardware nodes.</p>
-        `,
-        visualizer: {
-            type: "c4-zoom",
-            title: "Interactive C4 Zoom Model",
-            desc: "Click nodes to drill down from Context (Level 1) to Container (Level 2)."
-        },
+            <p>For example, a typical deployment diagram maps out the AWS setup: traffic route from Route 53 to an Application Load Balancer (ALB) distributed across public subnets in Multi-AZ regions, calling EC2 instances inside private subnets, which write to a multi-region replicated Aurora DB.</p>
+                `,
+        visualizer: {'type': 'c4-zoom', 'title': 'Interactive C4 Zoom Model', 'desc': 'Click nodes to drill down from Context (Level 1) to Container (Level 2).'},
         quiz: [
             {
                 question: "In the C4 Model, what does a 'Container' represent?",
@@ -345,11 +371,11 @@ Client       Gateway       AuthService      Database
                     "A Docker container only",
                     "Any executable codebase, running service, or database storage unit (e.g. web browser, backend API, database)",
                     "A class method variable",
-                    "A structural class diagram interface"
+                    "A structural class diagram interface",
                 ],
                 answer: 1,
                 explanation: "In C4 terminology, a container is not just a Docker container; it is any deployable and runnable subsystem, including frontend apps, databases, microservices, or mobile apps."
-            }
+            },
         ]
     },
     {
@@ -368,6 +394,7 @@ Client       Gateway       AuthService      Database
                 <li><strong>Partition Tolerance (P):</strong> The system continues to operate despite an arbitrary number of messages being dropped or delayed by the network between nodes.</li>
             </ul>
 
+            <!-- pagebreak -->
             <div class="alert alert-important">
                 <div class="alert-title">Choosing P is Mandatory!</div>
                 Physical networks can always experience partitions (hardware faults, optical fiber cuts, routing errors). Therefore, you cannot choose CA. In system design, you must choose:
@@ -385,12 +412,8 @@ Client       Gateway       AuthService      Database
                 <li><strong>PA/EL:</strong> Partition -> Availability. Else -> Latency (Fast over Consistent). Examples: Cassandra, DynamoDB.</li>
                 <li><strong>PC/EC:</strong> Partition -> Consistency. Else -> Consistency (Consistent over Fast). Examples: Spanner, MySQL Cluster.</li>
             </ul>
-        `,
-        visualizer: {
-            type: "cap-interactive",
-            title: "CAP Theorem Venn Diagram",
-            desc: "Hover over the regions to see system trade-offs."
-        },
+                `,
+        visualizer: {'type': 'cap-interactive', 'title': 'CAP Theorem Venn Diagram', 'desc': 'Hover over the regions to see system trade-offs.'},
         quiz: [
             {
                 question: "Why is it practically impossible to build a CA (Consistent and Available) system in real cloud environments?",
@@ -398,7 +421,7 @@ Client       Gateway       AuthService      Database
                     "Because consistency is slow.",
                     "Because network partitions are guaranteed to happen eventually due to physical infrastructure failures, forcing a choice between C and A.",
                     "Because cloud providers ban them.",
-                    "Because database licenses do not support it."
+                    "Because database licenses do not support it.",
                 ],
                 answer: 1,
                 explanation: "Network partition tolerance (P) is mandatory in real-world networking. If a partition occurs, a database must either reject queries to maintain Consistency (choosing CP) or accept potentially stale data to remain Available (choosing AP)."
@@ -409,11 +432,11 @@ Client       Gateway       AuthService      Database
                     "Encryption and Local Storage",
                     "Else and Latency",
                     "Engine and Locking",
-                    "Elasticity and Logic"
+                    "Elasticity and Logic",
                 ],
                 answer: 1,
                 explanation: "PACELC states: If there is a Partition (P), trade off Availability (A) or Consistency (C); Else (E), trade off Latency (L) or Consistency (C)."
-            }
+            },
         ]
     },
     {
@@ -426,8 +449,8 @@ Client       Gateway       AuthService      Database
 
             <h2>L4 vs L7 Load Balancing</h2>
             <ul>
-                <li><strong>Layer 4 (Transport Layer):</strong> Routes traffic based on network info (IP address and TCP/UDP ports). Fast, doesn't decrypt HTTPS payloads, simple.</li>
-                <li><strong>Layer 7 (Application Layer):</strong> Routes traffic based on application data (HTTP headers, cookies, URL paths like <code>/api/v1/checkout</code> vs <code>/static/images</code>). Can decrypt SSL/TLS traffic, flexible, smart.</li>
+                <li><strong>Layer 4 (Transport Layer):</strong> Routes traffic based on network info (IP address and TCP/UDP ports). Fast, doesn't decrypt HTTPS payloads, simple, low CPU overhead.</li>
+                <li><strong>Layer 7 (Application Layer):</strong> Routes traffic based on application data (HTTP headers, cookies, URL paths like <code>/api/v1/checkout</code> vs <code>/static/images</code>). Decrypts SSL/TLS traffic, flexible, smart, requires more CPU resources.</li>
             </ul>
 
             <!-- pagebreak -->
@@ -442,12 +465,9 @@ Client       Gateway       AuthService      Database
             <!-- pagebreak -->
             <h2>Consistent Hashing</h2>
             <p>Traditional hashing (<code>server = hash(key) % N</code>) breaks down when scaling servers up or down because <code>N</code> changes, causing almost all keys to remap. Consistent Hashing maps keys and servers onto a circular ring, minimizing key migration when nodes are added or removed.</p>
-        `,
-        visualizer: {
-            type: "load-balancer",
-            title: "Load Balancing Simulator",
-            desc: "Click 'Route Request' to simulate traffic allocation across three backend nodes using Round Robin."
-        },
+            <p>To ensure uniform distribution of keys and avoid unbalanced node allocations, consistent hashing leverages **Virtual Nodes (Vnodes)**. Each physical server is assigned multiple virtual positions on the hash ring. This prevents hotspots by smoothing out key mappings across servers.</p>
+                `,
+        visualizer: {'type': 'load-balancer', 'title': 'Load Balancing Simulator', 'desc': "Click 'Route Request' to simulate traffic allocation across three backend nodes using Round Robin."},
         quiz: [
             {
                 question: "What is the primary advantage of Layer 7 Load Balancing over Layer 4?",
@@ -455,7 +475,7 @@ Client       Gateway       AuthService      Database
                     "Layer 7 is much faster because it does not inspect data.",
                     "Layer 7 can route requests based on specific HTTP paths, headers, cookies, or SSL session configurations.",
                     "Layer 7 only handles database connections.",
-                    "Layer 7 operates directly on routers without operating system dependencies."
+                    "Layer 7 operates directly on routers without operating system dependencies.",
                 ],
                 answer: 1,
                 explanation: "Layer 7 operates at the application level. It can read HTTP packets, allowing routing decisions based on URL paths (e.g., redirecting /billing to a billing microservice) and cookies."
@@ -466,11 +486,11 @@ Client       Gateway       AuthService      Database
                     "By shutting down all nodes first",
                     "By mapping keys and nodes onto a hash ring, meaning only a fraction of keys (k/N) need to move when a node changes",
                     "By replacing SQL databases with NoSQL databases",
-                    "By keeping a central lock on all data objects"
+                    "By keeping a central lock on all data objects",
                 ],
                 answer: 1,
                 explanation: "Consistent Hashing maps servers and objects to the same circular hash space. Adding or deleting a node only impacts keys located near that node on the circle, leaving the rest untouched."
-            }
+            },
         ]
     },
     {
@@ -519,17 +539,19 @@ Client       Gateway       AuthService      Database
             </ul>
 
             <!-- pagebreak -->
-            <h2>3. Redis vs. CDN</h2>
+            <h2>3. Redis vs. CDN & Mitigating Cache Issues</h2>
             <ul>
-                <li><strong>Redis (Remote Dictionary Server):</strong> In-memory key-value database. Used for caching database queries, session states, and API responses close to the application.</li>
-                <li><strong>CDN (Content Delivery Network):</strong> Distributed network of edge proxy servers geographically dispersed to cache static assets (HTML, CSS, JS, images, videos) close to end-users.</li>
+                <li><strong>Redis (Remote Dictionary Server):</strong> In-memory key-value database. Used for caching database queries, session states, and API responses.</li>
+                <li><strong>CDN (Content Delivery Network):</strong> Distributed network of edge proxy servers to cache static assets (HTML, CSS, JS, images, videos) close to end-users.</li>
             </ul>
-        `,
-        visualizer: {
-            type: "cache-lookup",
-            title: "Cache Aside Read Flow",
-            desc: "Request a user ID to trace the lookup route through the Cache and Database."
-        },
+            <h3>Cache Pitfalls & Mitigations:</h3>
+            <ul>
+                <li><strong>Cache Penetration:</strong> Requests for keys that do not exist hit the DB every time. *Mitigation:* Use Bloom Filters or cache empty values with a short TTL.</li>
+                <li><strong>Cache Stampede:</strong> Multiple clients parallel-request a key when it expires, forcing multiple concurrent slow DB reads. *Mitigation:* Use mutex locks on cache misses.</li>
+                <li><strong>Cache Avalanche:</strong> A mass expiration of keys at once overloads the DB. *Mitigation:* Inject random jitter to TTL durations.</li>
+            </ul>
+                `,
+        visualizer: {'type': 'cache-lookup', 'title': 'Cache Aside Read Flow', 'desc': 'Request a user ID to trace the lookup route through the Cache and Database.'},
         quiz: [
             {
                 question: "Which cache eviction policy discards the items that have not been read or written to for the longest duration?",
@@ -537,7 +559,7 @@ Client       Gateway       AuthService      Database
                     "LFU (Least Frequently Used)",
                     "LRU (Least Recently Used)",
                     "FIFO (First In First Out)",
-                    "TTL (Time to Live)"
+                    "TTL (Time to Live)",
                 ],
                 answer: 1,
                 explanation: "LRU (Least Recently Used) tracks access sequences and discards the element that has gone unaccessed for the longest period when capacity limits are hit."
@@ -548,11 +570,11 @@ Client       Gateway       AuthService      Database
                     "When write speeds are a massive bottleneck and minor data loss risk under crash is acceptable",
                     "When absolute consistency is required",
                     "When database storage is cheaper than cache storage",
-                    "When writing only static images"
+                    "When writing only static images",
                 ],
                 answer: 0,
                 explanation: "Write-back writes to cache first and responds immediately to the client, postponing DB commits to background batch tasks. This maximizes throughput but presents data loss risks during sudden outages."
-            }
+            },
         ]
     },
     {
@@ -592,7 +614,7 @@ Client       Gateway       AuthService      Database
                     </tr>
                     <tr>
                         <td><strong>Use Case</strong></td>
-                        <td>Complex routing, transactions, standard task queues.</td>
+                        <td>Complex routing (Exchanges like Direct, Fanout, Topic, Headers), transactions, standard task queues.</td>
                         <td>High throughput event streaming, log aggregation, real-time analytics.</td>
                     </tr>
                     <tr>
@@ -608,12 +630,8 @@ Client       Gateway       AuthService      Database
                 <div class="alert-title">Decoupling Example</div>
                 When a user places an order: the Order Service writes to the DB and publishes an <code>order-placed</code> event to a message queue. The Notification Service and Inventory Service consume this message independently. If the Notification Service crashes, the message remains safely in the queue until it boots back up.
             </div>
-        `,
-        visualizer: {
-            type: "message-queue",
-            title: "Decoupled Event Flow Simulator",
-            desc: "Click 'Publish Event' to see how a producer decoupled from consumers queues tasks safely."
-        },
+                `,
+        visualizer: {'type': 'message-queue', 'title': 'Decoupled Event Flow Simulator', 'desc': "Click 'Publish Event' to see how a producer decoupled from consumers queues tasks safely."},
         quiz: [
             {
                 question: "Why is Apache Kafka able to scale to millions of messages per second compared to traditional brokers like RabbitMQ?",
@@ -621,11 +639,11 @@ Client       Gateway       AuthService      Database
                     "It processes messages in memory only and never saves to disk.",
                     "It utilizes an append-only commit log on disk and delegates message state tracking (offsets) to the consumers instead of the broker.",
                     "It runs on specialized hardware routers.",
-                    "It does not support multiple consumers."
+                    "It does not support multiple consumers.",
                 ],
                 answer: 1,
                 explanation: "Kafka keeps broker processes simple by treating topics as partition logs on disk. Consumers keep track of their own progress (offsets), eliminating heavy read/write lock book-keeping inside the broker."
-            }
+            },
         ]
     },
     {
@@ -637,7 +655,7 @@ Client       Gateway       AuthService      Database
             <p>API design dictates how client components request information from server components. Choosing the right API protocol determines network overhead, payload size, and development speed.</p>
 
             <h2>1. REST (Representational State Transfer)</h2>
-            <p>REST is resource-centric and relies on HTTP methods (GET, POST, PUT, DELETE) and HTTP status codes (200 OK, 404 Not Found, 500 Server Error).</p>
+            <p>REST is resource-centric and relies on HTTP methods (GET, POST, PUT, DELETE) and HTTP status codes. It enforces stateless server communications.</p>
             <ul>
                 <li><strong>Over-fetching:</strong> Client receives more data than needed (e.g. requesting user name returns address, bio, and billing info).</li>
                 <li><strong>Under-fetching:</strong> Client has to make multiple API calls to fetch associated data (e.g. get posts, then get comments for each post).</li>
@@ -646,6 +664,7 @@ Client       Gateway       AuthService      Database
             <!-- pagebreak -->
             <h2>2. GraphQL</h2>
             <p>GraphQL is a query language for APIs. It uses a single endpoint (typically <code>POST /graphql</code>) and allows the client to define the exact shape of the response payload, resolving over-fetching and under-fetching.</p>
+            <p>However, GraphQL can lead to the **N+1 query problem** on the server if resolvers fetch associated database entries one-by-one. Developers resolve this bottleneck using batching utilities like Facebook's **DataLoader**.</p>
             <pre><code># GraphQL Query Example
 query {
   user(id: "1") {
@@ -657,17 +676,9 @@ query {
             <!-- pagebreak -->
             <h2>3. gRPC (Remote Procedure Call)</h2>
             <p>Developed by Google, gRPC is an open-source high-performance RPC framework. It runs on top of <strong>HTTP/2</strong> (supporting bi-directional streaming and multiplexing) and uses <strong>Protocol Buffers (Protobuf)</strong> as its binary serialization format.</p>
-            
-            <div class="alert alert-important">
-                <div class="alert-title">When to use gRPC?</div>
-                gRPC is ideal for low-latency, high-performance **inter-microservice communication** where static typing, compact binary payloads, and stream multiplexing are essential. REST remains dominant for public-facing client-to-server endpoints.
-            </div>
-        `,
-        visualizer: {
-            type: "api-comparison",
-            title: "API Payload Size Tester",
-            desc: "Compare network package sizes between XML, JSON (REST), and Protobuf (gRPC)."
-        },
+            <p>gRPC supports four streaming models: Unary (standard request/response), Server Streaming, Client Streaming, and Bidirectional Streaming. It is ideal for low-latency, high-performance **inter-microservice communication** where static typing and compact binary payloads are essential. REST remains dominant for public-facing client-to-server endpoints.</p>
+                `,
+        visualizer: {'type': 'api-comparison', 'title': 'API Payload Size Tester', 'desc': 'Compare network package sizes between XML, JSON (REST), and Protobuf (gRPC).'},
         quiz: [
             {
                 question: "Which technology does gRPC leverage for binary serialization and interface definition?",
@@ -675,7 +686,7 @@ query {
                     "JSON (JavaScript Object Notation)",
                     "XML Schema definitions",
                     "Protocol Buffers (Protobuf)",
-                    "GraphQL schemas"
+                    "GraphQL schemas",
                 ],
                 answer: 2,
                 explanation: "gRPC uses Protocol Buffers (.proto files) to define message structures and service methods, compiling them into fast, language-agnostic binary serialization code."
@@ -686,11 +697,11 @@ query {
                     "Lack of database drivers",
                     "CORS security policies",
                     "Over-fetching and under-fetching of API fields by letting the client request exactly what it needs",
-                    "High CPU usage on servers"
+                    "High CPU usage on servers",
                 ],
                 answer: 2,
                 explanation: "GraphQL allows client queries to specify fields (e.g. only name and ID), preventing the server from transmitting excess fields (over-fetching) or requiring multiple API hops (under-fetching)."
-            }
+            },
         ]
     },
     {
@@ -708,11 +719,11 @@ query {
             </ul>
 
             <!-- pagebreak -->
-            <h2>2. Database Indexing</h2>
+            <h2>2. Database Indexing: B+ Trees vs. LSM Trees</h2>
             <p>Indexes speed up query read operations at the cost of slower write speeds and extra storage. The two primary index data structures are:</p>
             <ul>
-                <li><strong>B-Trees (B+ Trees):</strong> Self-balancing tree structures. Keep data sorted, allowing logarithmic search, insertions, and range queries. Used by Relational DBs.</li>
-                <li><strong>LSM-Trees (Log-Structured Merge-Trees):</strong> Optimize write performance by appending writes to an in-memory buffer (MemTable) and flushing them sequentially to immutable disk logs (SSTables). Used by Cassandra, RocksDB.</li>
+                <li><strong>B-Trees (B+ Trees):</strong> Self-balancing tree structures. Keep data sorted, allowing logarithmic search, insertions, and range queries. B+ Trees keep keys only in leaf nodes, linking leaves sequentially for fast scans. Used by Relational DBs.</li>
+                <li><strong>LSM-Trees (Log-Structured Merge-Trees):</strong> Optimize write performance by appending writes to an in-memory buffer (MemTable) and flushing them sequentially to sorted disk logs (SSTables). Compaction runs in the background. Used by Cassandra, RocksDB.</li>
             </ul>
 
             <!-- pagebreak -->
@@ -721,14 +732,10 @@ query {
             <ul>
                 <li><strong>Horizontal Partitioning:</strong> Splitting table rows into multiple databases.</li>
                 <li><strong>Vertical Partitioning:</strong> Splitting table columns into separate tables (e.g. moving heavy blob text columns to a separate table).</li>
-                <li><strong>Sharding Keys:</strong> The attribute used to route queries (e.g. <code>user_id</code>). Choosing a poor shard key can lead to "hotspots" (unbalanced load on one server).</li>
+                <li><strong>Sharding Keys:</strong> The attribute used to route queries (e.g. <code>user_id</code>). Choosing a poor shard key can lead to "hotspots" (unbalanced load on one server). Re-sharding when clusters grow is complex and requires consistent hashing or directory routing.</li>
             </ul>
-        `,
-        visualizer: {
-            type: "sharding-calc",
-            title: "Database Sharding Router",
-            desc: "Enter a User ID to see which Database Shard the request is routed to using Hash Sharding (hash % 3)."
-        },
+                `,
+        visualizer: {'type': 'sharding-calc', 'title': 'Database Sharding Router', 'desc': 'Enter a User ID to see which Database Shard the request is routed to using Hash Sharding (hash % 3).'},
         quiz: [
             {
                 question: "What is the trade-off of adding database indexes to tables?",
@@ -736,7 +743,7 @@ query {
                     "Faster reads, but slower writes and increased storage consumption",
                     "Faster writes, but slower reads",
                     "Indexes make queries slower but secure",
-                    "There are no trade-offs; they should be added on every column"
+                    "There are no trade-offs; they should be added on every column",
                 ],
                 answer: 0,
                 explanation: "Indexes speed up SELECT queries. However, whenever a row is inserted, updated, or deleted, the index structures (e.g., B-Trees) must be recalculated, slowing down writes."
@@ -747,11 +754,11 @@ query {
                     "A server running physically hot in a data center",
                     "A shard that receives a disproportionate amount of read/write traffic due to an uneven sharding key distribution",
                     "An indexing error in B-Trees",
-                    "A backup database takeover"
+                    "A backup database takeover",
                 ],
                 answer: 1,
                 explanation: "If you shard users by country, and 90% of users are in the US, the US shard will handle almost all traffic. This imbalance is called a hotspot and is solved by choosing a high-cardinality shard key (like UUID)."
-            }
+            },
         ]
     },
     {
@@ -770,9 +777,14 @@ query {
             </ul>
 
             <!-- pagebreak -->
-            <h2>2. Redundancy Patterns</h2>
+            <h2>2. Redundancy Patterns & Replication Lag</h2>
             <ul>
-                <li><strong>Active-Passive (Failover):</strong> One active node serves traffic; passive nodes replicate data in real-time. If the active node dies, a heartbeat detector triggers a failover, promoting a passive node.</li>
+                <li><strong>Active-Passive (Failover):</strong> One active node serves traffic; passive nodes replicate data. If the active node dies, a heartbeat detector triggers a failover, promoting a passive node.
+                    <ul>
+                        <li>*Synchronous replication:* Primary waits for replica ack. Ensures no data loss, but writes are slow.</li>
+                        <li>*Asynchronous replication:* Primary writes and immediately responds to client. Fast, but risks data loss during sudden failover.</li>
+                    </ul>
+                </li>
                 <li><strong>Active-Active:</strong> Multiple nodes serve traffic simultaneously. If one node dies, load balancers stop routing traffic to it.</li>
             </ul>
 
@@ -786,15 +798,11 @@ query {
        |--> RTO (Recovery Time Objective) --- [System Back Online]
             </div>
             <ul>
-                <li><strong>RPO (Recovery Point Objective):</strong> The maximum acceptable age of data that can be lost due to an outage (e.g. "We must lose less than 4 hours of transaction data"). Dictates backup frequency.</li>
-                <li><strong>RTO (Recovery Time Objective):</strong> The maximum acceptable duration of downtime before system recovery (e.g. "System must be back online within 15 minutes of an outage"). Dictates architecture redundancy.</li>
+                <li><strong>RPO (Recovery Point Objective):</strong> The maximum acceptable age of data that can be lost due to an outage. Dictates backup frequency.</li>
+                <li><strong>RTO (Recovery Time Objective):</strong> The maximum acceptable duration of downtime before system recovery. Dictates architecture redundancy.</li>
             </ul>
-        `,
-        visualizer: {
-            type: "active-passive",
-            title: "Active-Passive Failover Simulation",
-            desc: "Click 'Simulate Server Crash' to watch a heartbeat monitor detect active server loss and promote the standby replica."
-        },
+                `,
+        visualizer: {'type': 'active-passive', 'title': 'Active-Passive Failover Simulation', 'desc': "Click 'Simulate Server Crash' to watch a heartbeat monitor detect active server loss and promote the standby replica."},
         quiz: [
             {
                 question: "If a company has a Recovery Point Objective (RPO) of 1 hour, what does this imply?",
@@ -802,11 +810,11 @@ query {
                     "The system must be restored to service within 1 hour of a crash.",
                     "The database backups must be performed at least every hour to avoid losing more than 1 hour of transactions.",
                     "The servers must have 99.9% availability.",
-                    "The network latency must be less than 1 hour."
+                    "The network latency must be less than 1 hour.",
                 ],
                 answer: 1,
                 explanation: "RPO represents the acceptable amount of data loss measured in time. An RPO of 1 hour means you must perform backups at intervals no greater than 1 hour, so you can restore to a point within 1 hour of the crash."
-            }
+            },
         ]
     },
     {
@@ -851,12 +859,8 @@ class OrderProcessor {
     public void process(int amount) { strategy.pay(amount); }
 }</code></pre>
             </div>
-        `,
-        visualizer: {
-            type: "observer-pattern",
-            title: "Observer Pattern Visualizer",
-            desc: "Click 'Emit Event' to trigger the Subject and watch all registered Observers execute updates simultaneously."
-        },
+                `,
+        visualizer: {'type': 'observer-pattern', 'title': 'Observer Pattern Visualizer', 'desc': "Click 'Emit Event' to trigger the Subject and watch all registered Observers execute updates simultaneously."},
         quiz: [
             {
                 question: "Which design pattern is best suited for notifying multiple dependent services dynamically whenever an internal state change occurs in a core service?",
@@ -864,11 +868,11 @@ class OrderProcessor {
                     "Singleton Pattern",
                     "Observer Pattern",
                     "Adapter Pattern",
-                    "Factory Pattern"
+                    "Factory Pattern",
                 ],
                 answer: 1,
                 explanation: "The Observer pattern establishes a one-to-many relationship where a subject notifies all registered observers of updates asynchronously, maintaining loose coupling."
-            }
+            },
         ]
     },
     {
@@ -887,22 +891,23 @@ class OrderProcessor {
 
             <!-- pagebreak -->
             <h2>2. Modern Token Protocols: JWT & OAuth2</h2>
-            <p><strong>JSON Web Token (JWT):</strong> Stateless credentials containing signed JSON claims (e.g., user ID, roles). Self-contained, but impossible to revoke before expiration without blacklist databases.</p>
+            <p><strong>JSON Web Token (JWT):</strong> Stateless credentials containing signed JSON claims (e.g., user ID, roles). Self-contained, but impossible to revoke before expiration without blacklist databases (usually stored in Redis for instant revocation checks).</p>
             <p><strong>OAuth 2.0:</strong> An industry-standard delegation framework that allows client applications to obtain limited access to user accounts on an HTTP service (e.g. "Login with Google").</p>
 
             <!-- pagebreak -->
-            <h2>3. Network Security Boundaries</h2>
+            <h2>3. Network Security Boundaries & Rate Limiting</h2>
             <ul>
                 <li><strong>TLS/HTTPS:</strong> Encrypts data in transit to prevent Man-in-the-Middle (MitM) attacks.</li>
                 <li><strong>WAF (Web Application Firewall):</strong> Filters, monitors, and blocks HTTP traffic to and from a web application (blocks SQL injections, XSS, and botnets).</li>
-                <li><strong>Rate Limiting:</strong> Prevents Denial of Service (DoS) and brute force attacks by limiting requests per IP window.</li>
+                <li><strong>Rate Limiting Algorithms:</strong> Prevents DoS attacks. Typical algorithms include:
+                    <ul>
+                        <li>*Token Bucket:* Tokens are added to a bucket at a constant rate. Requests consume tokens. Handles bursts.</li>
+                        <li>*Leaky Bucket:* Requests enter a queue and leak out at a constant, smooth rate. Smooths outbound traffic.</li>
+                    </ul>
+                </li>
             </ul>
-        `,
-        visualizer: {
-            type: "jwt-visualizer",
-            title: "JWT Structure Viewer",
-            desc: "Hover over the color-coded parts of a JWT token to inspect the Header, Payload, and Signature components."
-        },
+                `,
+        visualizer: {'type': 'jwt-visualizer', 'title': 'JWT Structure Viewer', 'desc': 'Hover over the color-coded parts of a JWT token to inspect the Header, Payload, and Signature components.'},
         quiz: [
             {
                 question: "What is a main security limitation of using stateless JSON Web Tokens (JWT) for user sessions?",
@@ -910,11 +915,11 @@ class OrderProcessor {
                     "They cannot store user data.",
                     "They are difficult to revoke instantly before their scheduled expiration time without keeping a central token blacklist.",
                     "They do not work on mobile phones.",
-                    "They require database calls to verify signatures."
+                    "They require database calls to verify signatures.",
                 ],
                 answer: 1,
                 explanation: "Because JWTs are stateless and self-contained, a server verifies them by signature alone. If a token is stolen, it remains valid until its expiration (TTL) unless a revoking database mechanism is built."
-            }
+            },
         ]
     },
     {
@@ -987,13 +992,10 @@ class OrderProcessor {
             <ul>
                 <li><strong>Regions & Availability Zones:</strong> A **Region** is a geographic area. An **Availability Zone (AZ)** is one or more discrete data centers with redundant power, networking, and connectivity within a Region. Designing for HA requires deploying services across multiple AZs.</li>
                 <li><strong>Auto-Scaling Group:</strong> Automatically adjusts the number of compute instances up or down based on load metrics (e.g. CPU > 70%).</li>
+                <li><strong>VPC (Virtual Private Cloud):</strong> Isolated virtual network space in the cloud, split into public subnets (routing to Internet Gateways) and private subnets (no direct ingress, using NAT gateways for egress).</li>
             </ul>
-        `,
-        visualizer: {
-            type: "cloud-calculator",
-            title: "Multi-Cloud Mapper",
-            desc: "Select a resource category to quickly cross-map its product equivalent across cloud suites."
-        },
+                `,
+        visualizer: {'type': 'cloud-calculator', 'title': 'Multi-Cloud Mapper', 'desc': 'Select a resource category to quickly cross-map its product equivalent across cloud suites.'},
         quiz: [
             {
                 question: "What is the difference between an Availability Zone (AZ) and a Region?",
@@ -1001,11 +1003,11 @@ class OrderProcessor {
                     "A Region is a single data center; an AZ is a collection of countries.",
                     "An AZ is a physical data center setup within a Region, while a Region is a geographic collection of multiple, isolated AZs.",
                     "AZs are only for databases; Regions are for VMs.",
-                    "They mean the same thing."
+                    "They mean the same thing.",
                 ],
                 answer: 1,
                 explanation: "Regions represent separate geographical locations (e.g., US-East-1). Within each Region, cloud providers run multiple isolated data centers called Availability Zones (AZs) connected with fiber to support failover."
-            }
+            },
         ]
     },
     {
@@ -1053,12 +1055,8 @@ class OrderProcessor {
                 <li><strong>Open Connect CDN:</strong> Custom appliance boxes installed inside ISP networks to cache and serve heavy video streams without touching transit backbones.</li>
                 <li><strong>Chaos Engineering:</strong> Intentionally tearing down production systems (using Chaos Monkey) to ensure the system degrades gracefully without breaking the stream.</li>
             </ul>
-        `,
-        visualizer: {
-            type: "case-studies-selector",
-            title: "Case Study Architecture Blueprint",
-            desc: "Select a company to load their high-level system design flow."
-        },
+                `,
+        visualizer: {'type': 'case-studies-selector', 'title': 'Case Study Architecture Blueprint', 'desc': 'Select a company to load their high-level system design flow.'},
         quiz: [
             {
                 question: "In feed generation architectures (like Facebook or Twitter), why is a hybrid approach (Push + Pull) used?",
@@ -1066,11 +1064,11 @@ class OrderProcessor {
                     "To prevent writing to disk.",
                     "Because pushing posts from celebrity accounts with millions of followers would crash systems due to write amplification (fan-out bottleneck), so followers pull celebrity posts on-demand instead.",
                     "To support old browsers.",
-                    "Because SQL databases cannot run joins."
+                    "Because SQL databases cannot run joins.",
                 ],
                 answer: 1,
                 explanation: "If a user has 80 million followers, posting a tweet requires writing 80 million feed logs (Fan-out-on-write). This crashes database clusters. A hybrid model pulls celebrity data on-demand (Fan-out-on-read) and merges it."
-            }
+            },
         ]
     },
     {
@@ -1106,13 +1104,13 @@ Trace ID: 0x9f2a (Total: 400ms)
 +---------------------------------------------+
 | Gateway (Span A) [0ms - 400ms]              |
 +---------------------------------------------+
-   \\--+-------------------------------+
+   \--+-------------------------------+
       | AuthSrv (Span B) [5ms - 55ms] |
       +-------------------------------+
-   \\--+--------------------------------------+
+   \--+--------------------------------------+
       | OrderSrv (Span C) [60ms - 390ms]      |
       +---------------------------------------+
-         \\--+------------------------+
+         \--+------------------------+
             | DB Query (Span D)      |
             | [80ms - 380ms]         |
             +------------------------+
@@ -1126,12 +1124,8 @@ Trace ID: 0x9f2a (Total: 400ms)
                 <li><strong>SLO (Service Level Objective):</strong> The target reliability goal agreed upon by product teams (e.g. 99% of successful requests must have latency < 200ms over 30 days).</li>
                 <li><strong>SLA (Service Level Agreement):</strong> The legal/business contract with customers defining penalties if the SLO is breached (e.g. 99.9% availability or customers get 10% refund).</li>
             </ul>
-        `,
-        visualizer: {
-            type: "observability-flow",
-            title: "Observability & Alerting Dashboard",
-            desc: "Simulate load spikes and watch metrics, logs, and distributed traces respond in real-time."
-        },
+                `,
+        visualizer: {'type': 'observability-flow', 'title': 'Observability & Alerting Dashboard', 'desc': 'Simulate load spikes and watch metrics, logs, and distributed traces respond in real-time.'},
         quiz: [
             {
                 question: "What are the three pillars of observability in distributed systems?",
@@ -1139,7 +1133,7 @@ Trace ID: 0x9f2a (Total: 400ms)
                     "Security, Speed, and Stability",
                     "SQL, NoSQL, and NewSQL",
                     "Metrics, Logs, and Distributed Traces",
-                    "Load Balancers, Caches, and Message Queues"
+                    "Load Balancers, Caches, and Message Queues",
                 ],
                 answer: 2,
                 explanation: "Metrics, Logs, and Distributed Traces are the three core telemetry types that give developers and SREs deep visibility into active system state and execution bottlenecks."
@@ -1150,18 +1144,14 @@ Trace ID: 0x9f2a (Total: 400ms)
                     "An SLI is a legal contract, while an SLO is a technical metric.",
                     "An SLI is the actual quantitative measurement of a metric, whereas an SLO is the target objective for that indicator.",
                     "They are identical terms.",
-                    "SLIs are for hardware; SLOs are for software."
+                    "SLIs are for hardware; SLOs are for software.",
                 ],
                 answer: 1,
                 explanation: "The SLI is the indicator (e.g., current error rate = 0.5%). The SLO is the objective target (e.g., error rate must remain < 1.0% over 30 days)."
-            }
+            },
         ]
     }
 ];
-
-// ==========================================================================
-// PROGRAMMING LANGUAGE LESSONS DATA
-// ==========================================================================
 
 const PROGRAMMING_LANGUAGE_LESSONS = [
     {
